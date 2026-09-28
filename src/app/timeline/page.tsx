@@ -40,7 +40,6 @@ export default async function TimelinePage() {
   const items = await getTrackedTimeline();
   return (
     <main className="mx-auto min-h-screen max-w-[1500px] px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-cyan-200">Your release radar</p>
       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">The timeline</h1>
       <p className="mb-9 mt-3 max-w-xl text-sm leading-6 text-slate-400">Follow future releases, switch between the timeline and calendar, or browse the unscheduled horizon.</p>
       <TimelineSpine items={items} />

@@ -13,6 +13,7 @@ export type RadarItem = {
   sortTimestamp: string | null;
   isApproximate: boolean;
   posterUrl: string | null;
+  posterFallbackUrls?: string[];
   backdropUrl: string | null;
   description: string;
   externalUrl: string | null;
@@ -86,7 +87,7 @@ function parseApproximateDate(raw: string): { iso: string | null; label: string;
 async function getUpcomingGames(): Promise<RadarItem[]> {
   try {
     const url = new URL("https://store.steampowered.com/search/results/");
-    url.search = new URLSearchParams({ query: "", start: "0", count: "50", dynamic_data: "", sort_by: "_ASC", filter: "comingsoon", infinite: "1" }).toString();
+    url.search = new URLSearchParams({ query: "", start: "0", count: "50", dynamic_data: "", sort_by: "_ASC", filter: "popularcomingsoon", infinite: "1", cc: "us", l: "english" }).toString();
     const response = await fetch(url, {
       headers: { accept: "application/json", "user-agent": "HorizonReleaseRadar/1.0" },
       next: { revalidate: 3600 }, signal: AbortSignal.timeout(9_000),
@@ -104,15 +105,21 @@ async function getUpcomingGames(): Promise<RadarItem[]> {
       const releaseText = card.match(/class=["'][^"']*search_released[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1];
       const poster = card.match(/<img[^>]+(?:src|data-src)=["']([^"']+)/i)?.[1];
       const release = parseApproximateDate(decodeHtml((releaseText ?? "Coming soon").replace(/<[^>]+>/g, " ")).trim());
+      const cleanTitle = decodeHtml(title.replace(/<[^>]+>/g, "")).trim();
       if (release.iso && release.iso < today) return [];
+      if (/\b(demo|prologue|playtest|soundtrack)\b/i.test(cleanTitle)) return [];
+      const libraryArt = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`;
+      const cdnArt = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/library_600x900.jpg`;
+      const headerArt = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/header.jpg`;
       return [{
-        source: "steam", sourceId: id, type: "GAME", title: decodeHtml(title.replace(/<[^>]+>/g, "")).trim(),
+        source: "steam", sourceId: id, type: "GAME", title: cleanTitle,
         displayDate: release.label, releaseDate: release.iso,
         sortTimestamp: release.iso ? `${release.iso}T12:00:00.000Z` : null,
-        isApproximate: release.approximate, posterUrl: poster ? decodeHtml(poster) : null,
+        isApproximate: release.approximate, posterUrl: libraryArt,
+        posterFallbackUrls: [cdnArt, headerArt, ...(poster ? [decodeHtml(poster)] : [])],
         backdropUrl: null, description: "Upcoming PC game listed on Steam.",
         externalUrl: decodeHtml(href), tmdbId: null, genreIds: [], popularity: 0,
-        href: decodeHtml(href),
+        href: `/releases/steam/${id}`,
       }];
     });
   } catch {
@@ -120,12 +127,19 @@ async function getUpcomingGames(): Promise<RadarItem[]> {
   }
 }
 
-type MusicBrainzReleaseGroup = {
+type MusicBrainzRelease = {
   id: string;
+  date?: string;
+  country?: string;
   title: string;
-  "first-release-date"?: string;
   "artist-credit"?: Array<{ name?: string; artist?: { name?: string } }>;
   score?: number;
+  "release-group"?: {
+    id: string;
+    title: string;
+    "primary-type"?: string;
+    "first-release-date"?: string;
+  };
 };
 
 async function getUpcomingAlbums(): Promise<RadarItem[]> {
@@ -134,11 +148,12 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
   end.setUTCFullYear(end.getUTCFullYear() + 2);
   const today = start.toISOString().slice(0, 10);
   const limit = end.toISOString().slice(0, 10);
-  const query = `firstreleasedate:[${today} TO ${limit}] AND (primarytype:album OR primarytype:single OR primarytype:ep)`;
-  const url = new URL("https://musicbrainz.org/ws/2/release-group/");
+  const query = `country:US AND date:[${today} TO ${limit}] AND status:official`;
+  const url = new URL("https://musicbrainz.org/ws/2/release/");
   url.searchParams.set("query", query);
   url.searchParams.set("fmt", "json");
   url.searchParams.set("limit", "100");
+  url.searchParams.set("inc", "release-groups");
 
   try {
     const response = await fetch(url, {
@@ -146,26 +161,38 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
       next: { revalidate: 86_400 }, signal: AbortSignal.timeout(9_000),
     });
     if (!response.ok) return [];
-    const payload = await response.json() as { "release-groups"?: MusicBrainzReleaseGroup[] };
-    return (payload["release-groups"] ?? []).flatMap((group): RadarItem[] => {
-      const date = group["first-release-date"] ?? "";
-      if (!date || date < today || date > limit) return [];
-      const dateValue = new Date(`${date.length === 4 ? `${date}-01-01` : date.length === 7 ? `${date}-01` : date}T12:00:00Z`);
-      const artist = group["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ");
-      const dayExact = /^\d{4}-\d{2}-\d{2}$/.test(date);
-      return [{
+    const payload = await response.json() as { releases?: MusicBrainzRelease[] };
+    const grouped = new Map<string, { release: MusicBrainzRelease; date: string; group: NonNullable<MusicBrainzRelease["release-group"]> }>();
+    for (const release of payload.releases ?? []) {
+      const group = release["release-group"];
+      const date = release.date ?? group?.["first-release-date"] ?? "";
+      if (release.country && release.country !== "US") continue;
+      if (!group?.id || !["album", "single", "ep"].includes((group["primary-type"] ?? "").toLowerCase())) continue;
+      if (!date || date < today.slice(0, date.length) || date > limit.slice(0, date.length)) continue;
+      const existing = grouped.get(group.id);
+      if (!existing || date.length > existing.date.length) grouped.set(group.id, { release, date, group });
+    }
+    return [...grouped.values()].map(({ release, date, group }): RadarItem => {
+      const artist = release["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ");
+      const exactDay = /^\d{4}-\d{2}-\d{2}$/.test(date);
+      const dateForParsing = `${date}${date.length === 4 ? "-01-01" : date.length === 7 ? "-01" : ""}`;
+      const dateValue = new Date(`${dateForParsing}T12:00:00Z`);
+      const dateLabel = date.length === 4 ? date : date.length === 7
+        ? new Date(`${date}-01T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
+        : formatDate(date);
+      return {
         source: "musicbrainz", sourceId: group.id, type: "MUSIC", title: group.title,
-        displayDate: `${formatDate(date)}${artist ? ` · ${artist}` : ""}`,
-        releaseDate: dayExact ? date : null,
+        displayDate: `${dateLabel}${artist ? ` · ${artist}` : ""}`,
+        releaseDate: exactDay ? date : null,
         sortTimestamp: Number.isFinite(dateValue.getTime()) ? dateValue.toISOString() : null,
-        isApproximate: !dayExact,
+        isApproximate: !exactDay,
         posterUrl: `https://coverartarchive.org/release-group/${group.id}/front-500`,
         backdropUrl: null,
-        description: artist ? `Upcoming music release by ${artist}.` : "Upcoming music release.",
+        description: artist ? `Upcoming U.S. music release by ${artist}.` : "Upcoming U.S. music release.",
         externalUrl: `https://musicbrainz.org/release-group/${group.id}`, tmdbId: null,
-        genreIds: [], popularity: Number(group.score ?? 0),
-        href: `https://musicbrainz.org/release-group/${group.id}`,
-      }];
+        genreIds: [], popularity: Number(release.score ?? 0),
+        href: `/releases/musicbrainz/${group.id}`,
+      };
     }).sort((a, b) => (a.sortTimestamp ?? "").localeCompare(b.sortTimestamp ?? ""));
   } catch {
     return [];

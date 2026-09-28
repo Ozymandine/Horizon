@@ -1,4 +1,3 @@
-import { Compass, Sparkles } from "lucide-react";
 import { RadarFeed } from "@/components/radar-feed";
 import { getUpcomingRadar, type RadarItem } from "@/lib/radar";
 
@@ -36,20 +35,11 @@ export default async function DiscoverPage() {
   const recommendations = personalize(Object.values(feed).flat(), preferences);
   return (
     <main className="mx-auto min-h-screen max-w-7xl px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
-      <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.2em] text-violet-200"><Compass size={14} /> Discover</p>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-violet-200">Discover</p>
       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">Find your next countdown.</h1>
-      <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">Browse future releases across movies, TV, games, and music. Save anything you want to follow.</p>
-      <div className="glass mb-8 mt-8 flex flex-wrap items-center gap-4 rounded-3xl p-5 sm:p-6">
-        <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-violet-200/10 text-violet-200"><Sparkles size={20} /></span>
-        <div>
-          <h2 className="font-medium text-white">{preferences.length ? "Picked from your ratings" : "Your recommendations are taking shape"}</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">{preferences.length
-            ? `Ranked using ${preferences.length} release${preferences.length === 1 ? "" : "s"} you rated 4 or 5 stars. More ratings help tune the mix.`
-            : "Rate a few things in Reviews. Horizon will use your favorite categories and genres to move similar releases to the top."}</p>
-        </div>
-      </div>
+      <p className="mb-8 mt-3 max-w-2xl text-sm leading-6 text-slate-400">US releases with the most popular titles first. High ratings in My List move similar genres up the list.</p>
       <RadarFeed items={recommendations} emptyMessage="No upcoming items from the connected catalogs right now." />
-      <p className="mt-10 text-xs text-slate-500">Feeds from TMDB, Steam, and MusicBrainz. No AI or generated recommendations.</p>
+      <p className="mt-10 text-xs text-slate-500">Recommendations use your My List ratings and catalog popularity. No AI is used.</p>
     </main>
   );
 }

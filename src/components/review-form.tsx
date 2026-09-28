@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Check, Star } from "lucide-react";
 import { saveReview } from "@/app/actions/list";
 
 export function ReviewForm({ entityId, initialRating, initialComment }: {
@@ -31,7 +30,7 @@ export function ReviewForm({ entityId, initialRating, initialComment }: {
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((value) => (
             <button key={value} type="button" onClick={() => { setRating(value); setSaved(false); }} aria-label={`Rate ${value} out of 5 stars`} aria-pressed={rating === value} className="rounded-md p-1 text-amber-300 transition hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-200">
-              <Star size={21} className={value <= rating ? "fill-amber-300" : "text-slate-600"} />
+              <span aria-hidden className={`text-2xl leading-none ${value <= rating ? "text-amber-300" : "text-slate-600"}`}>★</span>
             </button>
           ))}
         </div>
@@ -43,7 +42,7 @@ export function ReviewForm({ entityId, initialRating, initialComment }: {
       <div className="flex items-center justify-between gap-3">
         <p aria-live="polite" className={`text-xs ${saved ? "text-emerald-200" : "text-slate-500"}`}>{message || `${comment.length}/4000`}</p>
         <button type="submit" disabled={pending || rating < 1} className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-40">
-          {saved && <Check size={13} />}{pending ? "Saving…" : saved ? "Saved" : "Save review"}
+          {pending ? "Saving…" : saved ? "Saved ✓" : "Save review"}
         </button>
       </div>
     </form>

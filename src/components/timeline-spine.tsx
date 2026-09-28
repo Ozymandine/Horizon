@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, HelpCircle, Waypoints } from "lucide-react";
 import clsx from "clsx";
 
 export type TimelineItem = {
@@ -49,9 +48,9 @@ function CalendarView({ items }: { items: TimelineItem[] }) {
   return (
     <section className="glass rounded-3xl p-4 sm:p-7">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <button type="button" onClick={() => setMonth(new Date(year, monthIndex - 1, 1))} aria-label="Previous month" className="grid size-9 place-items-center rounded-full border border-white/10 text-slate-300 hover:bg-white/10"><ChevronLeft size={16} /></button>
+        <button type="button" onClick={() => setMonth(new Date(year, monthIndex - 1, 1))} aria-label="Previous month" className="grid size-9 place-items-center rounded-full border border-white/10 text-slate-300 hover:bg-white/10">←</button>
         <h2 className="text-base font-semibold text-white sm:text-lg">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h2>
-        <button type="button" onClick={() => setMonth(new Date(year, monthIndex + 1, 1))} aria-label="Next month" className="grid size-9 place-items-center rounded-full border border-white/10 text-slate-300 hover:bg-white/10"><ChevronRight size={16} /></button>
+        <button type="button" onClick={() => setMonth(new Date(year, monthIndex + 1, 1))} aria-label="Next month" className="grid size-9 place-items-center rounded-full border border-white/10 text-slate-300 hover:bg-white/10">→</button>
       </div>
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <p key={day} className="pb-1 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500">{day}</p>)}
@@ -111,8 +110,8 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
     <div className="space-y-6">
       <div className="flex justify-end">
         <div className="flex rounded-full border border-white/10 bg-white/[.03] p-1" role="group" aria-label="Timeline view">
-          <button type="button" onClick={() => setView("timeline")} aria-pressed={view === "timeline"} className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium transition ${view === "timeline" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}><Waypoints size={14} /> Timeline</button>
-          <button type="button" onClick={() => setView("calendar")} aria-pressed={view === "calendar"} className={`inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium transition ${view === "calendar" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}><CalendarDays size={14} /> Calendar</button>
+          <button type="button" onClick={() => setView("timeline")} aria-pressed={view === "timeline"} className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${view === "timeline" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}>Timeline</button>
+          <button type="button" onClick={() => setView("calendar")} aria-pressed={view === "calendar"} className={`rounded-full px-3.5 py-2 text-xs font-medium transition ${view === "calendar" ? "bg-white/10 text-white" : "text-slate-400 hover:text-white"}`}>Calendar</button>
         </div>
       </div>
 
@@ -143,12 +142,11 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
             })}
             <span className="absolute top-[213px] left-0 rounded-full bg-[#0b0e14] px-2 py-1 text-[10px] uppercase tracking-wider text-slate-500">Today</span>
             <span className="absolute top-[213px] right-0 rounded-full bg-[#0b0e14] px-2 py-1 text-[10px] uppercase tracking-wider text-slate-500">+{daysBetween} days</span>
-            {timeline.groups.length === 0 && <div className="absolute inset-x-0 top-[188px] text-center"><Clock3 className="mx-auto mb-3 text-cyan-200/70" size={21} /><p className="text-sm text-slate-400">Your horizon is open. Releases you add will appear along this line.</p></div>}
           </div>
         </div>
       )}
 
-      {view === "timeline" && <section className="glass rounded-3xl p-5 sm:p-7"><div className="mb-4 flex items-center gap-2"><HelpCircle size={17} className="text-slate-400" /><h2 className="text-sm font-semibold text-white">Unscheduled Horizon</h2><span className="text-xs text-slate-500">{timeline.unscheduled.length}</span></div>{timeline.unscheduled.length === 0 ? <p className="text-sm text-slate-500">No TBA releases right now.</p> : <div className="flex flex-wrap gap-2">{timeline.unscheduled.map((item) => <Link key={item.id} href={item.href ?? `/entities/${item.id}`} className="glass rounded-full px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">{item.title}<span className="ml-1 text-xs text-slate-500">· TBA</span></Link>)}</div>}</section>}
+      {view === "timeline" && <section className="glass rounded-3xl p-5 sm:p-7"><div className="mb-4 flex items-center gap-2"><h2 className="text-sm font-semibold text-white">Unscheduled releases</h2><span className="text-xs text-slate-500">{timeline.unscheduled.length}</span></div>{timeline.unscheduled.length === 0 ? <p className="text-sm text-slate-500">No TBA releases right now.</p> : <div className="flex flex-wrap gap-2">{timeline.unscheduled.map((item) => <Link key={item.id} href={item.href ?? `/entities/${item.id}`} className="glass rounded-full px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10">{item.title}<span className="ml-1 text-xs text-slate-500">· TBA</span></Link>)}</div>}</section>}
     </div>
   );
 }

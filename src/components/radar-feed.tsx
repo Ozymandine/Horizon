@@ -1,28 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
 import type { RadarItem, RadarType } from "@/lib/radar";
 import { RadarCard } from "@/components/radar-card";
 
-const filters: { key: "ALL" | RadarType; label: string }[] = [
-  { key: "ALL", label: "Everything" },
+const filters: { key: RadarType; label: string }[] = [
   { key: "MOVIE", label: "Movies" },
-  { key: "SHOW", label: "TV & streaming" },
+  { key: "SHOW", label: "Series" },
   { key: "GAME", label: "Games" },
   { key: "MUSIC", label: "Music" },
 ];
 
 export function RadarFeed({ items, emptyMessage }: { items: RadarItem[]; emptyMessage: string }) {
-  const [active, setActive] = useState<(typeof filters)[number]["key"]>("ALL");
+  const [active, setActive] = useState<(typeof filters)[number]["key"]>("MOVIE");
   const [query, setQuery] = useState("");
   const counts = useMemo(() => Object.fromEntries(filters.map((filter) => [
     filter.key,
-    filter.key === "ALL" ? items.length : items.filter((item) => item.type === filter.key).length,
+    items.filter((item) => item.type === filter.key).length,
   ])), [items]);
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
-    return items.filter((item) => (active === "ALL" || item.type === active)
+    return items.filter((item) => item.type === active
       && (!normalized || item.title.toLocaleLowerCase().includes(normalized)));
   }, [active, items, query]);
 
@@ -38,7 +36,7 @@ export function RadarFeed({ items, emptyMessage }: { items: RadarItem[]; emptyMe
           ))}
         </div>
         <label className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[.03] px-3.5 py-2.5 text-slate-400 xl:w-64">
-          <Search size={14} />
+          <span aria-hidden className="text-sm">⌕</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a release" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-500" />
         </label>
       </div>

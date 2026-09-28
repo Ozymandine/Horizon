@@ -4,6 +4,10 @@
   color-scheme: dark;
   --background: #0b0e14;
   --foreground: #f5f7fb;
+  --horizon-background:
+    radial-gradient(ellipse at 16% -12%, rgba(29, 108, 139, .17), transparent 38rem),
+    radial-gradient(ellipse at 100% 35%, rgba(96, 58, 151, .12), transparent 34rem),
+    var(--background);
 }
 
 * { box-sizing: border-box; }
@@ -12,10 +16,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--foreground);
-  background:
-    radial-gradient(ellipse at 16% -12%, rgba(29, 108, 139, .17), transparent 38rem),
-    radial-gradient(ellipse at 100% 35%, rgba(96, 58, 151, .12), transparent 34rem),
-    var(--background);
+  background: var(--horizon-background);
   font-family: Arial, Helvetica, sans-serif;
 }
 ::selection { background: rgba(63, 211, 242, .3); }
@@ -28,3 +29,11 @@ body {
 }
 
 .poster-glow { box-shadow: 0 18px 60px rgba(18, 180, 213, .12); }
+
+.login-cinema {
+  background:
+    radial-gradient(ellipse at 12% 8%, rgba(255, 92, 155, .28), transparent 32rem),
+    radial-gradient(ellipse at 92% 18%, rgba(121, 87, 255, .30), transparent 34rem),
+    radial-gradient(ellipse at 65% 100%, rgba(41, 174, 211, .18), transparent 34rem),
+    #0b0e14;
+}

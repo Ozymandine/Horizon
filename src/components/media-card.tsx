@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { tmdbImage, type TmdbMovie } from "@/lib/tmdb";
 
 export function MediaCard({ movie }: { movie: TmdbMovie }) {
@@ -19,7 +18,7 @@ export function MediaCard({ movie }: { movie: TmdbMovie }) {
               <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-cyan-200">Movie</p>
               <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-white">{movie.title}</h3>
             </div>
-            <ArrowUpRight size={16} className="mb-0.5 shrink-0 text-white/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+            <span aria-hidden className="mb-0.5 shrink-0 text-white/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white">↗</span>
           </div>
         </div>
       </div>

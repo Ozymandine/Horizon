@@ -15,6 +15,7 @@ export type TmdbMovie = {
   genre_ids?: number[];
   genres?: { id: number; name: string }[];
   popularity?: number;
+  original_language?: string;
 };
 
 export type TmdbShow = {
@@ -29,6 +30,7 @@ export type TmdbShow = {
   genre_ids?: number[];
   genres?: { id: number; name: string }[];
   popularity?: number;
+  original_language?: string;
 };
 
 export type TmdbPerson = {
@@ -103,13 +105,17 @@ export async function getUpcomingMovies(): Promise<TmdbMovie[]> {
       include_adult: "false",
       include_video: "false",
       region: "US",
+      with_origin_country: "US",
+      with_original_language: "en",
+      "with_runtime.gte": "60",
       "primary_release_date.gte": today,
       "primary_release_date.lte": futureLimit,
-      sort_by: "primary_release_date.asc",
-    });
+      sort_by: "popularity.desc",
+    }, 5);
     return movies
       .filter((movie) => movie.release_date >= today && movie.release_date <= futureLimit)
-      .sort((a, b) => a.release_date.localeCompare(b.release_date));
+      .filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path))
+      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
   }
@@ -120,13 +126,16 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
     const { today, futureLimit } = dateRange();
     const shows = await paginated<TmdbShow>("/discover/tv", {
       include_null_first_air_dates: "false",
+      with_origin_country: "US",
+      with_original_language: "en",
       "first_air_date.gte": today,
       "first_air_date.lte": futureLimit,
-      sort_by: "first_air_date.asc",
-    });
+      sort_by: "popularity.desc",
+    }, 5);
     return shows
       .filter((show) => show.first_air_date >= today && show.first_air_date <= futureLimit)
-      .sort((a, b) => a.first_air_date.localeCompare(b.first_air_date));
+      .filter((show) => show.original_language === "en" && Boolean(show.poster_path))
+      .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
   }

@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Star } from "lucide-react";
 import { notFound } from "next/navigation";
 import { VideoPlayer } from "@/components/video-player";
 import { WatchOptions } from "@/components/watch-options";
@@ -37,12 +36,12 @@ export default async function MovieDetailPage({ params }: { params: Promise<{ id
         {backdrop && <Image src={backdrop} alt="" fill priority sizes="100vw" className="object-cover opacity-40" />}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e14] via-[#0b0e14]/65 to-[#0b0e14]/15" />
         <div className="relative mx-auto flex min-h-[380px] max-w-7xl flex-col justify-end px-5 pb-9 pt-10 sm:min-h-[480px] sm:px-8 sm:pb-14">
-          <Link href="/" className="absolute top-8 inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"><ArrowLeft size={15} /> Upcoming</Link>
+          <Link href="/" className="absolute top-8 inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white">← Upcoming</Link>
           <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-cyan-200">Movie · Coming soon</p>
           <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">{movie.title}</h1>
           <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-slate-300">
-            {movie.release_date && <span className="flex items-center gap-2"><CalendarDays size={15} />{new Date(`${movie.release_date}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>}
-            {movie.vote_average > 0 && <span className="flex items-center gap-1"><Star size={14} className="fill-amber-300 text-amber-300" />{movie.vote_average.toFixed(1)}</span>}
+            {movie.release_date && <span>{new Date(`${movie.release_date}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>}
+            {movie.vote_average > 0 && <span className="text-amber-200">★ {movie.vote_average.toFixed(1)}</span>}
           </div>
         </div>
       </section>
