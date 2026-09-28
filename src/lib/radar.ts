@@ -134,7 +134,7 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
   end.setUTCFullYear(end.getUTCFullYear() + 2);
   const today = start.toISOString().slice(0, 10);
   const limit = end.toISOString().slice(0, 10);
-  const query = `firstreleasedate:[${today} TO ${limit}] AND primarytype:album`;
+  const query = `firstreleasedate:[${today} TO ${limit}] AND (primarytype:album OR primarytype:single OR primarytype:ep)`;
   const url = new URL("https://musicbrainz.org/ws/2/release-group/");
   url.searchParams.set("query", query);
   url.searchParams.set("fmt", "json");
@@ -161,7 +161,7 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
         isApproximate: !dayExact,
         posterUrl: `https://coverartarchive.org/release-group/${group.id}/front-500`,
         backdropUrl: null,
-        description: artist ? `Upcoming album by ${artist}.` : "Upcoming album release.",
+        description: artist ? `Upcoming music release by ${artist}.` : "Upcoming music release.",
         externalUrl: `https://musicbrainz.org/release-group/${group.id}`, tmdbId: null,
         genreIds: [], popularity: Number(group.score ?? 0),
         href: `https://musicbrainz.org/release-group/${group.id}`,
