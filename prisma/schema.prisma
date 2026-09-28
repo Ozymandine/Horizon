@@ -1,0 +1,196 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EntityType {
+  MOVIE
+  SHOW
+  GAME
+  MUSIC
+  EVENT
+}
+
+enum EntityStatus {
+  UPCOMING
+  RELEASED
+  CANCELED
+}
+
+enum ConfidenceLevel {
+  OFFICIAL
+  CREDIBLE_LEAK
+  INDUSTRY_RUMOR
+  SPECULATIVE
+}
+
+enum ReleasePrecision {
+  EXACT_TIMESTAMP
+  EXACT_DATE
+  MONTH
+  QUARTER
+  SEASON
+  YEAR
+  TBD
+}
+
+enum EventKind {
+  CONCERT
+  TOUR_DATE
+  MERCH_DROP
+  OTHER
+}
+
+enum PartKind {
+  EPISODE
+  TRACK
+}
+
+enum CreditRole {
+  ACTOR
+  VOICE_ACTOR
+  DIRECTOR
+  WRITER
+  ARTIST
+  DEVELOPER
+  OTHER
+}
+
+enum EntityMediaKind {
+  TRAILER
+  CLIP
+  STREAMING_PROVIDER
+  OFFICIAL_SITE
+  OTHER
+}
+
+model Entity {
+  id               String           @id @default(cuid())
+  title            String           @db.VarChar(240)
+  type             EntityType
+  status           EntityStatus     @default(UPCOMING)
+  confidenceLevel  ConfidenceLevel  @default(OFFICIAL) @map("confidence_level")
+
+  posterUrl        String?          @map("poster_url") @db.Text
+  backdropUrl      String?          @map("backdrop_url") @db.Text
+  description      String?          @db.Text
+  externalUrl      String?          @map("external_url") @db.Text
+
+  displayDate      String           @default("TBA") @map("display_date") @db.VarChar(120)
+  releasePrecision ReleasePrecision @default(TBD) @map("release_precision")
+  sortTimestamp    DateTime?        @map("sort_timestamp") @db.Timestamptz(3)
+  dateEnd          DateTime?        @map("date_end") @db.Timestamptz(3)
+  isApproximate    Boolean          @default(false) @map("is_approximate")
+  releaseTimezone String?           @map("release_timezone") @db.VarChar(64)
+
+  tmdbId           Int?             @map("tmdb_id")
+  igdbId           Int?             @unique @map("igdb_id")
+  source           String?          @db.VarChar(40)
+  sourceId         String?          @map("source_id") @db.VarChar(160)
+  genreIds         Int[]            @default([]) @map("genre_ids")
+
+  eventKind        EventKind?       @map("event_kind")
+  isTracked        Boolean          @default(true) @map("is_tracked")
+  isCompleted      Boolean          @default(false) @map("is_completed")
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(3)
+
+  parts            EpisodeOrTrack[]
+  eventDates       EventDetail[]
+  credits          EntityCredit[]
+  media            EntityMedia[]
+  review           Review?
+
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tmdbId, type])
+  @@unique([source, sourceId])
+  @@index([isTracked, status, sortTimestamp])
+  @@index([type, status, sortTimestamp])
+  @@index([isCompleted, sortTimestamp])
+  @@map("entities")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  entityId  String   @unique @map("entity_id")
+  rating    Int
+  comment   String?  @db.Text
+  entity    Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("reviews")
+}
+
+model EpisodeOrTrack {
+  id          String    @id @default(cuid())
+  entityId    String    @map("entity_id")
+  kind        PartKind
+  title       String    @db.VarChar(240)
+  seasonNum   Int?      @map("season_num")
+  episodeNum  Int?      @map("episode_num")
+  trackNum    Int?      @map("track_num")
+  airDate     DateTime? @map("air_date") @db.Timestamptz(3)
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  entity      Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, seasonNum, episodeNum])
+  @@index([entityId, trackNum])
+  @@map("episodes_or_tracks")
+}
+
+model EventDetail {
+  id        String    @id @default(cuid())
+  entityId  String    @map("entity_id")
+  venue     String?   @db.VarChar(240)
+  city      String?   @db.VarChar(160)
+  latitude  Float?
+  longitude Float?
+  dropUrl   String?   @map("drop_url") @db.Text
+  eventTime DateTime? @map("event_time") @db.Timestamptz(3)
+  timezone  String?   @db.VarChar(64)
+
+  entity    Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, eventTime])
+  @@index([city])
+  @@map("event_details")
+}
+
+model EntityCredit {
+  id            String     @id @default(cuid())
+  entityId      String     @map("entity_id")
+  role          CreditRole
+  name          String     @db.VarChar(200)
+  characterName String?    @map("character_name") @db.VarChar(200)
+  imageUrl      String?    @map("image_url") @db.Text
+  sortOrder     Int        @default(0) @map("sort_order")
+
+  entity        Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, role, sortOrder])
+  @@map("entity_credits")
+}
+
+model EntityMedia {
+  id        String          @id @default(cuid())
+  entityId  String          @map("entity_id")
+  kind      EntityMediaKind
+  title     String?         @db.VarChar(240)
+  provider  String?         @db.VarChar(120)
+  url       String          @db.Text
+  embedUrl  String?         @map("embed_url") @db.Text
+  sortOrder Int             @default(0) @map("sort_order")
+
+  entity    Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, kind, sortOrder])
+  @@map("entity_media")
+}

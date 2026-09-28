@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --background: #0b0e14;
+  --foreground: #f5f7fb;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--background); }
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--foreground);
+  background:
+    radial-gradient(ellipse at 16% -12%, rgba(29, 108, 139, .17), transparent 38rem),
+    radial-gradient(ellipse at 100% 35%, rgba(96, 58, 151, .12), transparent 34rem),
+    var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+::selection { background: rgba(63, 211, 242, .3); }
+
+.glass {
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.045);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.poster-glow { box-shadow: 0 18px 60px rgba(18, 180, 213, .12); }
