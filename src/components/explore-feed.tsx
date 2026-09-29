@@ -123,7 +123,7 @@ export function ExploreFeed({ initialType = "MOVIE", initialGenre = "", initialY
           <option value="">Any year</option>{years.map((value) => <option key={value} value={value}>{value}</option>)}
         </select>
         <select aria-label="Sort releases" value={sort} onChange={(event) => setSort(event.target.value as "popular" | "rated")} className="glass rounded-full px-4 py-3 text-sm text-slate-200 outline-none">
-          <option value="popular">• Popular</option><option value="rated">★ Top rated</option>
+          <option value="popular">• Popular</option><option value="rated">{active === "MUSIC" ? "↻ Most replayed" : "★ Top rated"}</option>
         </select>
         <label className="glass flex min-w-56 items-center gap-2 rounded-full px-4 py-3 text-slate-300 sm:min-w-64">
           <span aria-hidden className="text-base">⌕</span>

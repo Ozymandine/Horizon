@@ -295,7 +295,7 @@ function isSoundtrackOrCompilation(group: NonNullable<MusicBrainzRelease["releas
 
 async function listenBrainzPopularity(kind: "artist" | "release-group", ids: string[]) {
   const uniqueIds = [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 100);
-  if (!uniqueIds.length) return new Map<string, number>();
+  if (!uniqueIds.length) return new Map<string, { listeners: number; plays: number }>();
   try {
     const response = await fetch(`https://api.listenbrainz.org/1/popularity/${kind}`, {
       method: "POST",
@@ -303,17 +303,17 @@ async function listenBrainzPopularity(kind: "artist" | "release-group", ids: str
       body: JSON.stringify({ [`${kind.replace("-", "_")}_mbids`]: uniqueIds }),
       next: { revalidate: 86_400 }, signal: AbortSignal.timeout(9_000),
     });
-    if (!response.ok) return new Map();
+    if (!response.ok) return new Map<string, { listeners: number; plays: number }>();
     const payload = await response.json() as Record<string, unknown>[];
     const idField = `${kind.replace("-", "_")}_mbid`;
-    return new Map(payload.flatMap((entry) => {
+    return new Map<string, { listeners: number; plays: number }>(payload.flatMap((entry) => {
       const id = typeof entry[idField] === "string" ? entry[idField] as string : "";
       const listeners = Number(entry.total_user_count ?? 0);
-      const listens = Number(entry.total_listen_count ?? 0);
-      return id ? [[id, listeners || listens]] : [];
+      const plays = Number(entry.total_listen_count ?? 0);
+      return id ? [[id, { listeners, plays }] as const] : [];
     }));
   } catch {
-    return new Map();
+    return new Map<string, { listeners: number; plays: number }>();
   }
 }
 
@@ -356,7 +356,7 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
     const scored = rows.map(({ release, date, group }) => {
       const artistId = release["artist-credit"]?.find((credit) => credit.artist?.id)?.artist?.id;
       const item = mapAlbumRelease(release, group, date);
-      return { item: { ...item, popularity: artistId ? popularity.get(artistId) ?? 0 : 0 }, fallbackScore: Number(release.score ?? 0) };
+      return { item: { ...item, popularity: artistId ? popularity.get(artistId)?.listeners ?? 0 : 0 } };
     });
     const withAudience = scored.filter(({ item }) => item.popularity > 0);
     return withAudience.map(({ item }) => item)
@@ -402,12 +402,15 @@ async function getExploreAlbums(year: number | undefined, sort: "popular" | "rat
     }
     const candidates = [...grouped.values()].map(({ item }) => item);
     const popularity = await listenBrainzPopularity("release-group", candidates.map((item) => item.sourceId));
-    const scored = candidates.map((item) => ({ ...item, popularity: popularity.get(item.sourceId) ?? 0 }));
-    const withAudience = scored.filter((item) => item.popularity > 0);
-    const ranked = withAudience;
-    return ranked.sort((a, b) => sort === "rated"
-      ? b.popularity - a.popularity || a.title.localeCompare(b.title)
-      : b.popularity - a.popularity || a.title.localeCompare(b.title));
+    const withAudience = candidates.flatMap((item) => {
+      const stats = popularity.get(item.sourceId);
+      if (!stats?.listeners) return [];
+      return [{ item: { ...item, popularity: stats.listeners }, replayRate: stats.plays / stats.listeners }];
+    });
+    return withAudience.sort((a, b) => sort === "rated"
+      ? b.replayRate - a.replayRate || b.item.popularity - a.item.popularity
+      : b.item.popularity - a.item.popularity || a.item.title.localeCompare(b.item.title))
+      .map(({ item }) => item);
   } catch {
     return [];
   }
