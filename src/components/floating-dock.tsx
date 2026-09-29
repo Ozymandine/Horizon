@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Bookmark, Compass, House, Waypoints } from "lucide-react";
+import { Bookmark, Compass, House, Settings, Waypoints } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -11,6 +11,7 @@ const tabs = [
   { href: "/timeline", label: "Timeline", icon: Waypoints },
   { href: "/discover", label: "Discover", icon: Compass },
   { href: "/my-list", label: "My List", icon: Bookmark },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function FloatingDock() {

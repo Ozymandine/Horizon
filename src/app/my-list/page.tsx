@@ -2,7 +2,6 @@ import Link from "next/link";
 import { RemoveFromListButton } from "@/components/remove-from-list-button";
 import { ReviewForm } from "@/components/review-form";
 import { MediaArtwork } from "@/components/media-artwork";
-import { BackgroundSettings } from "@/components/background-settings";
 
 const category = {
   MOVIE: ["Movie", "text-cyan-200"], SHOW: ["TV", "text-cyan-200"],
@@ -26,7 +25,6 @@ export default async function MyListPage() {
       <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-amber-200">My List</p>
       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">Things on your radar.</h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">The releases you chose to follow, with dates, ratings, and your notes.</p>
-      <div className="mt-8"><BackgroundSettings /></div>
       {entities === null ? (
         <div className="glass mt-9 rounded-3xl p-7 text-sm text-slate-400">My List could not load just now. Refresh to try again.</div>
       ) : entities.length ? (

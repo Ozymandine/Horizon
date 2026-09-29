@@ -1,5 +1,5 @@
 import "server-only";
-import { getUpcomingMovies, getUpcomingShows, tmdbImage } from "@/lib/tmdb";
+import { getExploreMovies, getExploreShows, getUpcomingMovies, getUpcomingShows, tmdbImage } from "@/lib/tmdb";
 
 export type RadarType = "MOVIE" | "SHOW" | "GAME" | "MUSIC";
 
@@ -20,8 +20,12 @@ export type RadarItem = {
   tmdbId: number | null;
   genreIds: number[];
   popularity: number;
+  voteAverage?: number;
+  voteCount?: number;
   href: string;
 };
+
+export type ExploreType = "MOVIE" | "SHOW";
 
 function formatDate(value: string) {
   if (!value) return "Date TBA";
@@ -48,6 +52,7 @@ export async function getUpcomingRadar(): Promise<Record<RadarType, RadarItem[]>
       backdropUrl: tmdbImage(movie.backdrop_path, "w780"), description: movie.overview,
       externalUrl: `https://www.themoviedb.org/movie/${movie.id}`, tmdbId: movie.id,
       genreIds: movie.genre_ids ?? [], popularity: movie.popularity ?? 0, href: `/movies/${movie.id}`,
+      voteAverage: movie.vote_average ?? 0, voteCount: movie.vote_count ?? 0,
     })),
     SHOW: shows.map((show) => ({
       source: "tmdb", sourceId: String(show.id), type: "SHOW", title: show.name,
@@ -57,10 +62,40 @@ export async function getUpcomingRadar(): Promise<Record<RadarType, RadarItem[]>
       backdropUrl: tmdbImage(show.backdrop_path, "w780"), description: show.overview,
       externalUrl: `https://www.themoviedb.org/tv/${show.id}`, tmdbId: show.id,
       genreIds: show.genre_ids ?? [], popularity: show.popularity ?? 0, href: `/shows/${show.id}`,
+      voteAverage: show.vote_average ?? 0, voteCount: show.vote_count ?? 0,
     })),
     GAME: games,
     MUSIC: albums,
   };
+}
+
+export async function getExploreRadar(type: ExploreType, options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<RadarItem[]> {
+  if (type === "MOVIE") {
+    const movies = await getExploreMovies(options);
+    return movies.map((movie) => ({
+      source: "tmdb", sourceId: String(movie.id), type, title: movie.title,
+      displayDate: formatDate(movie.release_date), releaseDate: movie.release_date || null,
+      sortTimestamp: movie.release_date ? `${movie.release_date}T12:00:00.000Z` : null,
+      isApproximate: false, posterUrl: tmdbImage(movie.poster_path, "w500"),
+      backdropUrl: tmdbImage(movie.backdrop_path, "w780"), description: movie.overview,
+      externalUrl: `https://www.themoviedb.org/movie/${movie.id}`, tmdbId: movie.id,
+      genreIds: movie.genre_ids ?? [], popularity: movie.popularity ?? 0,
+      voteAverage: movie.vote_average ?? 0, voteCount: movie.vote_count ?? 0,
+      href: `/movies/${movie.id}`,
+    }));
+  }
+  const shows = await getExploreShows(options);
+  return shows.map((show) => ({
+    source: "tmdb", sourceId: String(show.id), type, title: show.name,
+    displayDate: formatDate(show.first_air_date), releaseDate: show.first_air_date || null,
+    sortTimestamp: show.first_air_date ? `${show.first_air_date}T12:00:00.000Z` : null,
+    isApproximate: false, posterUrl: tmdbImage(show.poster_path, "w500"),
+    backdropUrl: tmdbImage(show.backdrop_path, "w780"), description: show.overview,
+    externalUrl: `https://www.themoviedb.org/tv/${show.id}`, tmdbId: show.id,
+    genreIds: show.genre_ids ?? [], popularity: show.popularity ?? 0,
+    voteAverage: show.vote_average ?? 0, voteCount: show.vote_count ?? 0,
+    href: `/shows/${show.id}`,
+  }));
 }
 
 type SteamSearchResponse = { results_html?: string; total_count?: number };

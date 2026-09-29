@@ -12,6 +12,7 @@ export type TmdbMovie = {
   poster_path: string | null;
   backdrop_path: string | null;
   vote_average: number;
+  vote_count?: number;
   genre_ids?: number[];
   genres?: { id: number; name: string }[];
   popularity?: number;
@@ -27,6 +28,7 @@ export type TmdbShow = {
   poster_path: string | null;
   backdrop_path: string | null;
   vote_average: number;
+  vote_count?: number;
   genre_ids?: number[];
   genres?: { id: number; name: string }[];
   popularity?: number;
@@ -50,16 +52,27 @@ export type TmdbVideo = {
 };
 
 export type TmdbMovieDetails = TmdbMovie & {
+  runtime?: number | null;
+  tagline?: string;
+  original_language?: string;
+  production_companies?: { id: number; name: string; logo_path: string | null }[];
   credits?: { cast: TmdbPerson[] };
   videos?: { results: TmdbVideo[] };
+  images?: { logos: { file_path: string; iso_639_1: string | null }[] };
+  genres?: { id: number; name: string }[];
 };
 
 export type TmdbShowDetails = TmdbShow & {
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+  status?: string;
   credits?: { cast: TmdbPerson[] };
   videos?: { results: TmdbVideo[] };
+  images?: { logos: { file_path: string; iso_639_1: string | null }[] };
+  genres?: { id: number; name: string }[];
 };
 
-type TmdbList<T> = { results: T[]; total_pages?: number };
+export type TmdbList<T> = { results: T[]; total_pages?: number };
 
 export async function tmdbFetch<T>(path: string, query: Record<string, string> = {}): Promise<T> {
   const apiKey = process.env.TMDB_API_KEY;
@@ -144,7 +157,7 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
 export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos" });
+    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos,images" });
   } catch {
     return null;
   }
@@ -153,10 +166,42 @@ export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | nu
 export async function getShowDetails(id: number): Promise<TmdbShowDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos" });
+    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos,images" });
   } catch {
     return null;
   }
+}
+
+export async function getExploreMovies(options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<TmdbMovie[]> {
+  const query: Record<string, string> = {
+    include_adult: "false",
+    include_video: "false",
+    region: "US",
+    with_origin_country: "US",
+    with_original_language: "en",
+    sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
+    ...(options.sort === "rated" ? { "vote_count.gte": "50" } : {}),
+    ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
+    ...(options.year ? { primary_release_year: String(options.year) } : {}),
+    page: String(Math.min(20, Math.max(1, options.page ?? 1))),
+  };
+  const result = await tmdbFetch<TmdbList<TmdbMovie>>("/discover/movie", query);
+  return (result.results ?? []).filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path));
+}
+
+export async function getExploreShows(options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<TmdbShow[]> {
+  const query: Record<string, string> = {
+    include_null_first_air_dates: "false",
+    with_origin_country: "US",
+    with_original_language: "en",
+    sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
+    ...(options.sort === "rated" ? { "vote_count.gte": "30" } : {}),
+    ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
+    ...(options.year ? { first_air_date_year: String(options.year) } : {}),
+    page: String(Math.min(20, Math.max(1, options.page ?? 1))),
+  };
+  const result = await tmdbFetch<TmdbList<TmdbShow>>("/discover/tv", query);
+  return (result.results ?? []).filter((show) => show.original_language === "en" && Boolean(show.poster_path));
 }
 
 export function tmdbImage(path: string | null, size: "w185" | "w342" | "w500" | "w780" | "original" = "w500") {
