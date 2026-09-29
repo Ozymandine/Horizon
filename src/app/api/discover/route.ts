@@ -4,8 +4,8 @@ import { getExploreRadar, type ExploreType } from "@/lib/radar";
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const rawType = params.get("type");
-  if (rawType !== "MOVIE" && rawType !== "SHOW") {
-    return NextResponse.json({ error: "Choose movies or series to explore." }, { status: 400 });
+  if (rawType !== "MOVIE" && rawType !== "SHOW" && rawType !== "GAME" && rawType !== "MUSIC") {
+    return NextResponse.json({ error: "Choose a media category to explore." }, { status: 400 });
   }
   const genreId = Number(params.get("genre"));
   const year = Number(params.get("year"));

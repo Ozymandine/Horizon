@@ -12,16 +12,18 @@ const category = {
 } as const;
 
 export default async function MyListPage() {
-  const storedEntities = process.env.DATABASE_URL ? await (async () => {
+  const storedData = process.env.DATABASE_URL ? await (async () => {
     try {
       const { prisma } = await import("@/lib/prisma");
-      return await prisma.entity.findMany({
-        where: { isTracked: true },
-        include: { review: true },
-        orderBy: [{ sortTimestamp: "asc" }, { title: "asc" }],
-      });
+      const [entities, lists] = await Promise.all([
+        prisma.entity.findMany({ where: { isTracked: true }, include: { review: true }, orderBy: [{ sortTimestamp: "asc" }, { title: "asc" }] }),
+        prisma.releaseList.findMany({ orderBy: { name: "asc" }, include: { items: { include: { entity: true }, orderBy: { createdAt: "desc" } } } }),
+      ]);
+      return { entities, lists };
     } catch { return null; }
   })() : null;
+  const storedEntities = storedData?.entities ?? null;
+  const lists = storedData?.lists ?? [];
   const currentFeed = storedEntities?.length ? await getUpcomingRadar() : null;
   const catalog = new Map<string, RadarItem>(currentFeed ? Object.values(currentFeed).flat().filter((release) => release.tmdbId)
     .map((release): [string, RadarItem] => [`${release.type}:${release.tmdbId}`, release]) : []);
@@ -35,6 +37,24 @@ export default async function MyListPage() {
       <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-amber-200">My List</p>
       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">Things on your radar.</h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">The releases you chose to follow, with dates, ratings, and your notes.</p>
+      {lists.length > 0 && <section className="mt-10 space-y-8">
+        {lists.map((list) => <div key={list.id}>
+          <h2 className="mb-4 text-xl font-semibold text-white">{list.name}</h2>
+          {list.items.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+            {list.items.map(({ entity }) => {
+              const href = entity.tmdbId ? (entity.type === "SHOW" ? `/shows/${entity.tmdbId}` : `/movies/${entity.tmdbId}`)
+                : entity.source === "steam" && entity.sourceId ? `/releases/steam/${entity.sourceId}`
+                : entity.source === "musicbrainz" && entity.sourceId ? `/releases/musicbrainz/${entity.sourceId}`
+                : `/entities/${entity.id}`;
+              return <Link key={entity.id} href={href} aria-label={`Open ${entity.title}`} title={entity.title} className="group relative aspect-[2/3] overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-lg shadow-black/25">
+                <MediaArtwork title={entity.title} type={entity.type} imageUrl={entity.posterUrl} />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+                <p className="absolute inset-x-0 bottom-0 translate-y-2 p-3 text-sm font-semibold text-white opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">{entity.title}</p>
+              </Link>;
+            })}
+          </div> : <p className="glass rounded-2xl p-5 text-sm text-slate-400">This list is empty.</p>}
+        </div>)}
+      </section>}
       {entities === null ? (
         <div className="glass mt-9 rounded-3xl p-7 text-sm text-slate-400">My List could not load just now. Refresh to try again.</div>
       ) : entities.length ? (

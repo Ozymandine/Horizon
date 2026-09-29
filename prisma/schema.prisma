@@ -69,43 +69,44 @@ enum EntityMediaKind {
 }
 
 model Entity {
-  id               String           @id @default(cuid())
-  title            String           @db.VarChar(240)
-  type             EntityType
-  status           EntityStatus     @default(UPCOMING)
-  confidenceLevel  ConfidenceLevel  @default(OFFICIAL) @map("confidence_level")
+  id              String          @id @default(cuid())
+  title           String          @db.VarChar(240)
+  type            EntityType
+  status          EntityStatus    @default(UPCOMING)
+  confidenceLevel ConfidenceLevel @default(OFFICIAL) @map("confidence_level")
 
-  posterUrl        String?          @map("poster_url") @db.Text
-  backdropUrl      String?          @map("backdrop_url") @db.Text
-  description      String?          @db.Text
-  externalUrl      String?          @map("external_url") @db.Text
+  posterUrl   String? @map("poster_url") @db.Text
+  backdropUrl String? @map("backdrop_url") @db.Text
+  description String? @db.Text
+  externalUrl String? @map("external_url") @db.Text
 
   displayDate      String           @default("TBA") @map("display_date") @db.VarChar(120)
   releasePrecision ReleasePrecision @default(TBD) @map("release_precision")
   sortTimestamp    DateTime?        @map("sort_timestamp") @db.Timestamptz(3)
   dateEnd          DateTime?        @map("date_end") @db.Timestamptz(3)
   isApproximate    Boolean          @default(false) @map("is_approximate")
-  releaseTimezone String?           @map("release_timezone") @db.VarChar(64)
+  releaseTimezone  String?          @map("release_timezone") @db.VarChar(64)
 
-  tmdbId           Int?             @map("tmdb_id")
-  igdbId           Int?             @unique @map("igdb_id")
-  source           String?          @db.VarChar(40)
-  sourceId         String?          @map("source_id") @db.VarChar(160)
-  genreIds         Int[]            @default([]) @map("genre_ids")
+  tmdbId   Int?    @map("tmdb_id")
+  igdbId   Int?    @unique @map("igdb_id")
+  source   String? @db.VarChar(40)
+  sourceId String? @map("source_id") @db.VarChar(160)
+  genreIds Int[]   @default([]) @map("genre_ids")
 
-  eventKind        EventKind?       @map("event_kind")
-  isTracked        Boolean          @default(true) @map("is_tracked")
-  isCompleted      Boolean          @default(false) @map("is_completed")
-  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(3)
+  eventKind   EventKind? @map("event_kind")
+  isTracked   Boolean    @default(true) @map("is_tracked")
+  isCompleted Boolean    @default(false) @map("is_completed")
+  completedAt DateTime?  @map("completed_at") @db.Timestamptz(3)
 
-  parts            EpisodeOrTrack[]
-  eventDates       EventDetail[]
-  credits          EntityCredit[]
-  media            EntityMedia[]
-  review           Review?
+  parts      EpisodeOrTrack[]
+  eventDates EventDetail[]
+  credits    EntityCredit[]
+  media      EntityMedia[]
+  review     Review?
+  listItems  ReleaseListItem[]
 
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([tmdbId, type])
   @@unique([source, sourceId])
@@ -127,6 +128,29 @@ model Review {
   @@map("reviews")
 }
 
+model ReleaseList {
+  id        String            @id @default(cuid())
+  name      String            @unique @db.VarChar(80)
+  items     ReleaseListItem[]
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("release_lists")
+}
+
+model ReleaseListItem {
+  id        String      @id @default(cuid())
+  listId    String      @map("list_id")
+  entityId  String      @map("entity_id")
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  list      ReleaseList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  entity    Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, entityId])
+  @@index([entityId])
+  @@map("release_list_items")
+}
+
 model EpisodeOrTrack {
   id          String    @id @default(cuid())
   entityId    String    @map("entity_id")
@@ -139,7 +163,7 @@ model EpisodeOrTrack {
   isCompleted Boolean   @default(false) @map("is_completed")
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
 
-  entity      Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([entityId, seasonNum, episodeNum])
   @@index([entityId, trackNum])
@@ -157,7 +181,7 @@ model EventDetail {
   eventTime DateTime? @map("event_time") @db.Timestamptz(3)
   timezone  String?   @db.VarChar(64)
 
-  entity    Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([entityId, eventTime])
   @@index([city])
@@ -173,7 +197,7 @@ model EntityCredit {
   imageUrl      String?    @map("image_url") @db.Text
   sortOrder     Int        @default(0) @map("sort_order")
 
-  entity        Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([entityId, role, sortOrder])
   @@map("entity_credits")
@@ -189,7 +213,7 @@ model EntityMedia {
   embedUrl  String?         @map("embed_url") @db.Text
   sortOrder Int             @default(0) @map("sort_order")
 
-  entity    Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([entityId, kind, sortOrder])
   @@map("entity_media")

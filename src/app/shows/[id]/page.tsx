@@ -2,13 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddToTimelineButton } from "@/components/add-to-timeline-button";
+import { AddToMyListMenu } from "@/components/add-to-my-list-menu";
 import { NewsPanel } from "@/components/news-panel";
 import { VideoPlayer } from "@/components/video-player";
 import { getShowDetails, tmdbImage } from "@/lib/tmdb";
 import type { RadarItem } from "@/lib/radar";
+import { returnLabel, safeReturnTo } from "@/lib/return-to";
 
-export default async function ShowDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ShowDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ returnTo?: string }> }) {
   const { id: rawId } = await params;
+  const backTo = safeReturnTo((await searchParams)?.returnTo);
   const id = Number(rawId);
   if (!Number.isSafeInteger(id) || id <= 0) notFound();
   const show = await getShowDetails(id);
@@ -39,11 +42,12 @@ export default async function ShowDetailPage({ params }: { params: Promise<{ id:
         <div className="absolute inset-0 bg-gradient-to-r from-[#080b10]/95 via-[#080b10]/65 to-[#080b10]/20" /><div className="absolute inset-0 bg-gradient-to-t from-[#0b0e14] via-transparent to-black/20" />
         <div className="relative mx-auto grid min-h-[650px] max-w-7xl items-end gap-10 px-5 pb-10 pt-20 sm:min-h-[740px] sm:px-8 sm:pb-14 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="max-w-3xl">
-            <Link href="/" className="absolute top-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/20 px-4 py-2 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10">← Upcoming</Link>
+            <Link href={backTo} className="absolute top-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/20 px-4 py-2 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10">← {returnLabel(backTo)}</Link>
             {logo ? <Image src={logo} alt={show.name} width={640} height={240} priority className="mb-5 max-h-32 w-auto max-w-full object-contain object-left sm:max-h-44" /> : <h1 className="mb-5 max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">{show.name}</h1>}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/85">{show.genres?.map((genre, index) => <span key={genre.id} className="flex items-center gap-2">{index > 0 && <span aria-hidden className="text-white/40">•</span>}{genre.name}</span>)}</div>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <AddToTimelineButton item={radarItem} />
+              <AddToMyListMenu item={radarItem} />
               {trailer && <a href="#trailer" className="detail-action"><span aria-hidden="true">▶</span> Trailer</a>}
               {show.vote_average > 0 && <span className="detail-action text-amber-100"><span aria-hidden="true">★</span> {show.vote_average.toFixed(1)} <span className="text-xs text-slate-400">TMDB</span></span>}
             </div>

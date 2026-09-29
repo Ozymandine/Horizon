@@ -36,8 +36,7 @@ function saveErrorMessage(error: unknown, subject: string) {
   return `Horizon could not save this ${subject}. Please try again.`;
 }
 
-export async function addToTimeline(item: RadarItem) {
-  if (!process.env.DATABASE_URL) return { ok: false as const, message: "Database connection is not configured." };
+async function saveRadarEntity(item: RadarItem, track: boolean) {
   if (!item || !["MOVIE", "SHOW", "GAME", "MUSIC"].includes(item.type)) return { ok: false as const, message: "This item cannot be added." };
 
   const title = String(item.title ?? "").trim().slice(0, 240);
@@ -71,28 +70,83 @@ export async function addToTimeline(item: RadarItem) {
     source,
     sourceId,
     genreIds: Array.isArray(item.genreIds) ? item.genreIds.filter((id) => Number.isSafeInteger(id)).slice(0, 40) : [],
-    isTracked: true,
+    isTracked: track,
   };
 
+  const existing = payload.tmdbId
+    ? await prisma.entity.findFirst({ where: { tmdbId: payload.tmdbId, type: payload.type } })
+    : await prisma.entity.findFirst({ where: { source, sourceId } });
+  const entity = existing
+    ? await prisma.entity.update({ where: { id: existing.id }, data: { ...payload, isTracked: track || existing.isTracked } })
+    : await prisma.entity.create({ data: payload });
+  return { ok: true as const, id: entity.id };
+}
+
+export async function addToTimeline(item: RadarItem) {
+  if (!process.env.DATABASE_URL) return { ok: false as const, message: "Database connection is not configured." };
   try {
-    let entity = payload.tmdbId
-      ? await prisma.entity.findFirst({ where: { tmdbId: payload.tmdbId, type: payload.type } })
-      : await prisma.entity.findFirst({ where: { source, sourceId } });
-    if (entity) {
-      entity = await prisma.entity.update({ where: { id: entity.id }, data: payload });
-    } else {
-      entity = await prisma.entity.create({ data: payload });
-    }
+    const result = await saveRadarEntity(item, true);
+    if (!result.ok) return result;
     revalidatePath("/");
     revalidatePath("/timeline");
     revalidatePath("/archive");
     revalidatePath("/my-list");
     revalidatePath("/reviews");
     revalidatePath("/discover");
-    return { ok: true as const, id: entity.id };
+    return result;
   } catch (error) {
     logActionError("add to timeline", error);
     return { ok: false as const, message: saveErrorMessage(error, "release") };
+  }
+}
+
+export async function getReleaseLists() {
+  if (!process.env.DATABASE_URL) return [];
+  try {
+    return await prisma.releaseList.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  } catch (error) {
+    logActionError("load custom lists", error);
+    return [];
+  }
+}
+
+export async function addItemToReleaseList(item: RadarItem, listId: string) {
+  if (!process.env.DATABASE_URL) return { ok: false as const, message: "Lists are not available right now." };
+  if (typeof listId !== "string" || listId.length > 40) return { ok: false as const, message: "Choose a valid list." };
+  try {
+    const list = await prisma.releaseList.findUnique({ where: { id: listId }, select: { id: true } });
+    if (!list) return { ok: false as const, message: "That list no longer exists." };
+    const entity = await saveRadarEntity(item, false);
+    if (!entity.ok) return entity;
+    await prisma.releaseListItem.upsert({
+      where: { listId_entityId: { listId, entityId: entity.id } },
+      create: { listId, entityId: entity.id },
+      update: {},
+    });
+    revalidatePath("/my-list");
+    return { ok: true as const, listName: (await prisma.releaseList.findUnique({ where: { id: listId }, select: { name: true } }))?.name ?? "your list" };
+  } catch (error) {
+    logActionError("add release to custom list", error);
+    return { ok: false as const, message: saveErrorMessage(error, "release") };
+  }
+}
+
+export async function createReleaseListAndAdd(item: RadarItem, title: string) {
+  if (!process.env.DATABASE_URL) return { ok: false as const, message: "Lists are not available right now." };
+  const name = String(title ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+  if (name.length < 1) return { ok: false as const, message: "Give your list a title." };
+  try {
+    const entity = await saveRadarEntity(item, false);
+    if (!entity.ok) return entity;
+    const list = await prisma.releaseList.create({ data: { name } });
+    await prisma.releaseListItem.create({ data: { listId: list.id, entityId: entity.id } });
+    revalidatePath("/my-list");
+    return { ok: true as const, list: { id: list.id, name: list.name } };
+  } catch (error) {
+    logActionError("create custom list", error);
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    if (code === "P2002") return { ok: false as const, message: "A list with that title already exists." };
+    return { ok: false as const, message: saveErrorMessage(error, "list") };
   }
 }
 
