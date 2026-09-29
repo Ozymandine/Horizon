@@ -2,6 +2,9 @@ import Link from "next/link";
 import { RemoveFromListButton } from "@/components/remove-from-list-button";
 import { ReviewForm } from "@/components/review-form";
 import { MediaArtwork } from "@/components/media-artwork";
+import { getUpcomingRadar, type RadarItem } from "@/lib/radar";
+
+export const revalidate = 3600;
 
 const category = {
   MOVIE: ["Movie", "text-cyan-200"], SHOW: ["TV", "text-cyan-200"],
@@ -9,7 +12,7 @@ const category = {
 } as const;
 
 export default async function MyListPage() {
-  const entities = process.env.DATABASE_URL ? await (async () => {
+  const storedEntities = process.env.DATABASE_URL ? await (async () => {
     try {
       const { prisma } = await import("@/lib/prisma");
       return await prisma.entity.findMany({
@@ -19,6 +22,13 @@ export default async function MyListPage() {
       });
     } catch { return null; }
   })() : null;
+  const currentFeed = storedEntities?.length ? await getUpcomingRadar() : null;
+  const catalog = new Map<string, RadarItem>(currentFeed ? Object.values(currentFeed).flat().filter((release) => release.tmdbId)
+    .map((release): [string, RadarItem] => [`${release.type}:${release.tmdbId}`, release]) : []);
+  const entities = storedEntities?.map((entity) => {
+    const release = catalog.get(`${entity.type}:${entity.tmdbId}`);
+    return release ? { ...entity, title: release.title, displayDate: release.displayDate, posterUrl: release.posterUrl, sortTimestamp: release.sortTimestamp ? new Date(release.sortTimestamp) : null } : entity;
+  }).sort((a, b) => (a.sortTimestamp?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.sortTimestamp?.getTime() ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title)) ?? null;
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-5 pb-32 pt-10 sm:px-8 sm:pt-14">

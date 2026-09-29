@@ -13,11 +13,6 @@ const categories: { key: RadarType; label: string }[] = [
 const movieGenres = [[28,"Action"],[12,"Adventure"],[16,"Animation"],[35,"Comedy"],[80,"Crime"],[99,"Documentary"],[18,"Drama"],[10751,"Family"],[14,"Fantasy"],[36,"History"],[27,"Horror"],[10402,"Music"],[9648,"Mystery"],[10749,"Romance"],[878,"Science Fiction"],[53,"Thriller"],[10752,"War"],[37,"Western"]] as const;
 const showGenres = [[10759,"Action & Adventure"],[16,"Animation"],[35,"Comedy"],[80,"Crime"],[99,"Documentary"],[18,"Drama"],[10751,"Family"],[10762,"Kids"],[9648,"Mystery"],[10763,"News"],[10764,"Reality"],[10765,"Sci-Fi & Fantasy"],[10766,"Soap"],[10767,"Talk"],[10768,"War & Politics"],[37,"Western"]] as const;
 
-function genreName(id: number, type: RadarType) {
-  const options = type === "SHOW" ? showGenres : movieGenres;
-  return options.find(([genreId]) => genreId === id)?.[1] ?? "Other";
-}
-
 export function ExploreFeed({ upcomingItems, initialMovies }: { upcomingItems: RadarItem[]; initialMovies: RadarItem[] }) {
   const [active, setActive] = useState<RadarType>("MOVIE");
   const [genre, setGenre] = useState("");
@@ -29,7 +24,10 @@ export function ExploreFeed({ upcomingItems, initialMovies }: { upcomingItems: R
   const [error, setError] = useState("");
 
   const isBrowseType = active === "MOVIE" || active === "SHOW";
-  const items = isBrowseType ? catalog : upcomingItems.filter((item) => item.type === active);
+  const items = useMemo(() => isBrowseType ? catalog : upcomingItems.filter((item) => item.type === active)
+    .slice().sort((a, b) => sort === "rated"
+      ? (b.voteAverage ?? b.popularity) - (a.voteAverage ?? a.popularity)
+      : b.popularity - a.popularity), [active, catalog, isBrowseType, sort, upcomingItems]);
 
   useEffect(() => {
     if (!isBrowseType) return;
@@ -53,6 +51,7 @@ export function ExploreFeed({ upcomingItems, initialMovies }: { upcomingItems: R
 
   function changeCategory(type: RadarType) {
     setActive(type);
+    if (type !== active && (type === "MOVIE" || type === "SHOW")) setCatalog([]);
     setGenre("");
     setYear("");
     setPage(1);
@@ -94,7 +93,6 @@ export function ExploreFeed({ upcomingItems, initialMovies }: { upcomingItems: R
       {loading && <p role="status" className="mt-6 text-center text-xs text-slate-500">Finding titles…</p>}
       {isBrowseType && items.length > 0 && <div className="mt-8 text-center"><button type="button" disabled={loading} onClick={() => setPage((current) => current + 1)} className="glass rounded-full px-5 py-3 text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-50">Show more</button></div>}
       {!isBrowseType && items.length > 0 && <p className="mt-6 text-center text-xs text-slate-500">{items.length} upcoming listings</p>}
-      <div className="sr-only">{active === "MOVIE" || active === "SHOW" ? genreName(Number(genre), active) : ""}</div>
     </section>
   );
 }

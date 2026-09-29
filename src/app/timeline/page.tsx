@@ -1,4 +1,7 @@
 import { TimelineSpine, type TimelineItem } from "@/components/timeline-spine";
+import { getUpcomingRadar, type RadarItem } from "@/lib/radar";
+
+export const revalidate = 3600;
 
 async function getTrackedTimeline(): Promise<TimelineItem[]> {
   if (!process.env.DATABASE_URL) return [];
@@ -23,13 +26,22 @@ async function getTrackedTimeline(): Promise<TimelineItem[]> {
         isApproximate: true,
         confidenceLevel: true,
         posterUrl: true,
+        tmdbId: true,
+        source: true,
+        sourceId: true,
       },
     });
+    const currentFeed = await getUpcomingRadar();
+    const catalog = new Map<string, RadarItem>(Object.values(currentFeed).flat().filter((release) => release.tmdbId)
+      .map((release): [string, RadarItem] => [`${release.type}:${release.tmdbId}`, release]));
     return entities.map((item) => ({
       ...item,
-      sortTimestamp: item.sortTimestamp?.toISOString() ?? null,
+      title: catalog.get(`${item.type}:${item.tmdbId}`)?.title ?? item.title,
+      displayDate: catalog.get(`${item.type}:${item.tmdbId}`)?.displayDate ?? item.displayDate,
+      posterUrl: catalog.get(`${item.type}:${item.tmdbId}`)?.posterUrl ?? item.posterUrl,
+      sortTimestamp: catalog.get(`${item.type}:${item.tmdbId}`)?.sortTimestamp ?? item.sortTimestamp?.toISOString() ?? null,
       dateEnd: item.dateEnd?.toISOString() ?? null,
-      href: `/entities/${item.id}`,
+      href: catalog.get(`${item.type}:${item.tmdbId}`)?.href ?? (item.tmdbId ? (item.type === "SHOW" ? `/shows/${item.tmdbId}` : `/movies/${item.tmdbId}`) : `/entities/${item.id}`),
     }));
   } catch {
     return [];
