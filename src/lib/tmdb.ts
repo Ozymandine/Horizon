@@ -128,7 +128,9 @@ export async function getUpcomingMovies(): Promise<TmdbMovie[]> {
     }, 5);
     return movies
       .filter((movie) => movie.release_date >= today && movie.release_date <= futureLimit)
+      // Keep the calendar centered on widely announced releases and drop community spam.
       .filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path))
+      .filter((movie) => (movie.popularity ?? 0) >= 2 || (movie.vote_count ?? 0) >= 10)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
@@ -149,6 +151,7 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
     return shows
       .filter((show) => show.first_air_date >= today && show.first_air_date <= futureLimit)
       .filter((show) => show.original_language === "en" && Boolean(show.poster_path))
+      .filter((show) => (show.popularity ?? 0) >= 1.5 || (show.vote_count ?? 0) >= 8)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
@@ -181,7 +184,8 @@ export async function getExploreMovies(options: { genreId?: number; year?: numbe
     with_origin_country: "US",
     with_original_language: "en",
     sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
-    ...(options.sort === "rated" ? { "vote_count.gte": "50" } : {}),
+    // Crowd signal keeps spammy and synthetic catalogue entries out of exploration.
+    "vote_count.gte": options.sort === "rated" ? "50" : "10",
     ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
     ...(options.year ? { primary_release_year: String(options.year) } : {}),
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),
@@ -196,7 +200,7 @@ export async function getExploreShows(options: { genreId?: number; year?: number
     with_origin_country: "US",
     with_original_language: "en",
     sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
-    ...(options.sort === "rated" ? { "vote_count.gte": "30" } : {}),
+    "vote_count.gte": options.sort === "rated" ? "30" : "8",
     ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
     ...(options.year ? { first_air_date_year: String(options.year) } : {}),
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),

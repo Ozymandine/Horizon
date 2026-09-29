@@ -33,23 +33,23 @@ export default async function MyListPage() {
   }).sort((a, b) => (a.sortTimestamp?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.sortTimestamp?.getTime() ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title)) ?? null;
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
+    <main className="mx-auto min-h-screen max-w-[1440px] px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
       <p className="mb-3 text-xs font-semibold uppercase tracking-[.2em] text-amber-200">My List</p>
       <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">Things on your radar.</h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">The releases you chose to follow, with dates, ratings, and your notes.</p>
       {lists.length > 0 && <section className="mt-10 space-y-8">
         {lists.map((list) => <div key={list.id}>
           <h2 className="mb-4 text-xl font-semibold text-white">{list.name}</h2>
-          {list.items.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+          {list.items.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
             {list.items.map(({ entity }) => {
               const href = entity.tmdbId ? (entity.type === "SHOW" ? `/shows/${entity.tmdbId}` : `/movies/${entity.tmdbId}`)
                 : entity.source === "steam" && entity.sourceId ? `/releases/steam/${entity.sourceId}`
                 : entity.source === "musicbrainz" && entity.sourceId ? `/releases/musicbrainz/${entity.sourceId}`
                 : `/entities/${entity.id}`;
-              return <Link key={entity.id} href={href} aria-label={`Open ${entity.title}`} title={entity.title} className="group relative aspect-[2/3] overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-lg shadow-black/25">
+              return <Link key={entity.id} href={href} aria-label={`Open ${entity.title}`} title={entity.title} className={`group relative ${entity.type === "MUSIC" ? "aspect-square" : "aspect-[2/3]"} overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-lg shadow-black/25`}>
                 <MediaArtwork title={entity.title} type={entity.type} imageUrl={entity.posterUrl} />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
-                <p className="absolute inset-x-0 bottom-0 translate-y-2 p-3 text-sm font-semibold text-white opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">{entity.title}</p>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-3"><p className="line-clamp-2 text-sm font-semibold text-white">{entity.title}</p><p className="mt-1 text-[11px] text-white/75">{entity.displayDate}</p></div>
               </Link>;
             })}
           </div> : <p className="glass rounded-2xl p-5 text-sm text-slate-400">This list is empty.</p>}

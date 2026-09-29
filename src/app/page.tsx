@@ -6,7 +6,7 @@ export default async function UpcomingPage() {
   const all = [...feed.MOVIE, ...feed.SHOW, ...feed.GAME, ...feed.MUSIC];
 
   return (
-    <main className="mx-auto min-h-screen max-w-7xl px-5 pb-32 pt-8 sm:px-8 sm:pt-12">
+    <main className="mx-auto min-h-screen max-w-[1440px] px-5 pb-32 pt-8 sm:px-8 sm:pt-12">
       <header className="mb-10 flex items-center justify-between">
         <span className="text-sm font-semibold tracking-[.2em] text-white">HORIZON</span>
       </header>

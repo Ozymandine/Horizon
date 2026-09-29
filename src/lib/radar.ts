@@ -1,5 +1,6 @@
 import "server-only";
 import { getExploreMovies, getExploreShows, getUpcomingMovies, getUpcomingShows, tmdbImage } from "@/lib/tmdb";
+import { discoverShelves, type DiscoverShelf } from "@/lib/discover-shelves";
 
 export type RadarType = "MOVIE" | "SHOW" | "GAME" | "MUSIC";
 
@@ -26,6 +27,8 @@ export type RadarItem = {
 };
 
 export type ExploreType = RadarType;
+
+export type RadarShelf = DiscoverShelf & { items: RadarItem[] };
 
 function formatDate(value: string) {
   if (!value) return "Date TBA";
@@ -64,14 +67,15 @@ export async function getUpcomingRadar(): Promise<Record<RadarType, RadarItem[]>
       genreIds: show.genre_ids ?? [], popularity: show.popularity ?? 0, href: `/shows/${show.id}`,
       voteAverage: show.vote_average ?? 0, voteCount: show.vote_count ?? 0,
     })),
-    GAME: games,
+    GAME: [...games, pokemonWindsAndWaves()],
     MUSIC: albums,
   };
 }
 
-export async function getExploreRadar(type: ExploreType, options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<RadarItem[]> {
+export async function getExploreRadar(type: ExploreType, options: { genreId?: number; genre?: string; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<RadarItem[]> {
   if (type === "MOVIE") {
-    const movies = await getExploreMovies(options);
+    const genreId = options.genreId ?? (options.genre && /^\d+$/.test(options.genre) ? Number(options.genre) : undefined);
+    const movies = await getExploreMovies({ ...options, genreId });
     return movies.map((movie) => ({
       source: "tmdb", sourceId: String(movie.id), type, title: movie.title,
       displayDate: formatDate(movie.release_date), releaseDate: movie.release_date || null,
@@ -85,7 +89,8 @@ export async function getExploreRadar(type: ExploreType, options: { genreId?: nu
     }));
   }
   if (type === "SHOW") {
-    const shows = await getExploreShows(options);
+    const genreId = options.genreId ?? (options.genre && /^\d+$/.test(options.genre) ? Number(options.genre) : undefined);
+    const shows = await getExploreShows({ ...options, genreId });
     return shows.map((show) => ({
     source: "tmdb", sourceId: String(show.id), type, title: show.name,
     displayDate: formatDate(show.first_air_date), releaseDate: show.first_air_date || null,
@@ -98,8 +103,34 @@ export async function getExploreRadar(type: ExploreType, options: { genreId?: nu
     href: `/shows/${show.id}`,
     }));
   }
-  if (type === "GAME") return getExploreGames(options.year, options.sort ?? "popular", options.page ?? 1);
-  return getExploreAlbums(options.year ?? new Date().getFullYear(), options.sort ?? "popular", options.page ?? 1);
+  if (type === "GAME") {
+    const games = await getExploreGames(options.year, options.sort ?? "popular", options.page ?? 1, options.genre);
+    const manual = pokemonWindsAndWaves();
+    const matchesYear = !options.year || manual.displayDate.startsWith(String(options.year));
+    const matchesGenre = !options.genre || options.genre === "tag:122";
+    return matchesYear && matchesGenre ? [...games, manual] : games;
+  }
+  return getExploreAlbums(options.year, options.sort ?? "popular", options.page ?? 1, options.genre);
+}
+
+export async function getExploreShelves(type: ExploreType, options: { year?: number; sort?: "popular" | "rated" } = {}): Promise<RadarShelf[]> {
+  return Promise.all(discoverShelves[type].map(async (shelf) => ({
+    ...shelf,
+    items: await getExploreRadar(type, { genre: shelf.value, year: options.year, sort: options.sort, page: 1 }),
+  })));
+}
+
+function pokemonWindsAndWaves(): RadarItem {
+  return {
+    source: "pokemon", sourceId: "winds-and-waves", type: "GAME",
+    title: "Pokémon Winds and Pokémon Waves", displayDate: "2027 · Date TBA",
+    releaseDate: null, sortTimestamp: null, isApproximate: true,
+    posterUrl: "https://windswaves.pokemon.com/_images/feb_27_2026/p03_01.png",
+    backdropUrl: null,
+    description: "The next Pokémon RPG adventures are officially announced for Nintendo Switch 2 in 2027. The games are being developed by GAME FREAK.",
+    externalUrl: "https://windswaves.pokemon.com/en-us/", tmdbId: null,
+    genreIds: [], popularity: 100_000, href: "/releases/pokemon/winds-and-waves",
+  };
 }
 
 type SteamSearchResponse = { results_html?: string; total_count?: number };
@@ -137,7 +168,8 @@ function parseSteamCards(html: string, options: { upcomingOnly?: boolean; offset
     const cleanTitle = decodeHtml(title.replace(/<[^>]+>/g, "")).trim();
     if (options.upcomingOnly && release.iso && release.iso < today) return [];
     if (/\b(demo|prologue|playtest|soundtrack|original game soundtrack|server test)\b/i.test(cleanTitle)) return [];
-    const libraryArt = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`;
+    const libraryArt = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900_2x.jpg`;
+    const libraryArtFallback = `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${id}/library_600x900.jpg`;
     const cdnArt = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/library_600x900.jpg`;
     const headerArt = `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/header.jpg`;
     const scoreText = decodeHtml(card.match(/data-tooltip-html=["']([^"']+)["']/i)?.[1] ?? "").toLowerCase();
@@ -154,7 +186,7 @@ function parseSteamCards(html: string, options: { upcomingOnly?: boolean; offset
       displayDate, releaseDate: release.iso,
       sortTimestamp: release.iso ? `${release.iso}T12:00:00.000Z` : null,
       isApproximate: release.approximate, posterUrl: libraryArt,
-      posterFallbackUrls: [cdnArt, headerArt, ...(poster ? [decodeHtml(poster)] : [])],
+      posterFallbackUrls: [libraryArtFallback, cdnArt, headerArt, ...(poster ? [decodeHtml(poster)] : [])],
       backdropUrl: null, description: "Steam game listing.",
       externalUrl: decodeHtml(href), tmdbId: null, genreIds: [],
       popularity: 1 / ((options.offset ?? 0) + index + 1),
@@ -180,12 +212,16 @@ async function getUpcomingGames(): Promise<RadarItem[]> {
   }
 }
 
-async function getExploreGames(year: number | undefined, sort: "popular" | "rated", page: number): Promise<RadarItem[]> {
+async function getExploreGames(year: number | undefined, sort: "popular" | "rated", page: number, genre?: string): Promise<RadarItem[]> {
   try {
-    const offsets = year ? [0, 50, 100, 150] : [(Math.max(1, page) - 1) * 50];
+    const offsets = year ? [0, 50, 100, 150, 200, 250, 300, 350] : [(Math.max(1, page) - 1) * 50];
+    const tag = genre?.match(/^tag:(\d+)$/)?.[1];
     const results = await Promise.all(offsets.map(async (offset) => {
       const url = new URL("https://store.steampowered.com/search/results/");
-      url.search = new URLSearchParams({ query: "", start: String(offset), count: "50", dynamic_data: "", sort_by: sort === "rated" ? "Reviews_DESC" : "Reviews_DESC", cc: "us", l: "english" }).toString();
+      url.search = new URLSearchParams({
+        query: "", start: String(offset), count: "50", dynamic_data: "", sort_by: "Reviews_DESC",
+        infinite: "1", cc: "us", l: "english", ...(tag ? { tags: tag } : {}),
+      }).toString();
       const response = await fetch(url, {
         headers: { accept: "application/json", "user-agent": "HorizonReleaseRadar/1.0" },
         next: { revalidate: 86_400 }, signal: AbortSignal.timeout(9_000),
@@ -199,9 +235,10 @@ async function getExploreGames(year: number | undefined, sort: "popular" | "rate
       if (year && item.releaseDate?.slice(0, 4) !== String(year)) continue;
       if (!unique.has(item.sourceId)) unique.set(item.sourceId, item);
     }
-    return [...unique.values()].sort((a, b) => sort === "rated"
+    const selected = [...unique.values()].sort((a, b) => sort === "rated"
       ? (b.voteAverage ?? 0) - (a.voteAverage ?? 0) || b.popularity - a.popularity
       : b.popularity - a.popularity);
+    return year ? selected.filter((item) => item.releaseDate?.slice(0, 4) === String(year)).slice((Math.max(1, page) - 1) * 50, Math.max(1, page) * 50) : selected;
   } catch {
     return [];
   }
@@ -220,24 +257,26 @@ type MusicBrainzRelease = {
     "primary-type"?: string;
     "secondary-types"?: string[];
     "first-release-date"?: string;
+    tags?: { count?: number; name?: string }[];
   };
 };
 
 function mapAlbumRelease(release: MusicBrainzRelease, group: NonNullable<MusicBrainzRelease["release-group"]>, date: string): RadarItem {
   const artist = release["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ");
-  const exactDay = /^\d{4}-\d{2}-\d{2}$/.test(date);
-  const dateForParsing = `${date}${date.length === 4 ? "-01-01" : date.length === 7 ? "-01" : ""}`;
+  const canonicalDate = group["first-release-date"] || date;
+  const exactDay = /^\d{4}-\d{2}-\d{2}$/.test(canonicalDate);
+  const dateForParsing = `${canonicalDate}${canonicalDate.length === 4 ? "-01-01" : canonicalDate.length === 7 ? "-01" : ""}`;
   const dateValue = new Date(`${dateForParsing}T12:00:00Z`);
-  const dateLabel = date.length === 4 ? date : date.length === 7
-    ? new Date(`${date}-01T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
-    : formatDate(date);
+  const dateLabel = canonicalDate.length === 4 ? canonicalDate : canonicalDate.length === 7
+    ? new Date(`${canonicalDate}-01T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
+    : formatDate(canonicalDate);
   return {
     source: "musicbrainz", sourceId: group.id, type: "MUSIC", title: group.title,
     displayDate: `${dateLabel}${artist ? ` · ${artist}` : ""}`,
-    releaseDate: exactDay ? date : null,
+    releaseDate: exactDay ? canonicalDate : null,
     sortTimestamp: Number.isFinite(dateValue.getTime()) ? dateValue.toISOString() : null,
     isApproximate: !exactDay,
-    posterUrl: `https://coverartarchive.org/release-group/${group.id}/front-500`,
+    posterUrl: `https://coverartarchive.org/release-group/${group.id}/front`,
     backdropUrl: null,
     description: artist ? `Album by ${artist}.` : "Music release.",
     externalUrl: `https://musicbrainz.org/release-group/${group.id}`, tmdbId: null,
@@ -318,17 +357,19 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
       return { item: { ...item, popularity: artistId ? popularity.get(artistId) ?? 0 : 0 }, fallbackScore: Number(release.score ?? 0) };
     });
     const withAudience = scored.filter(({ item }) => item.popularity > 0);
-    return (withAudience.length ? withAudience.map(({ item }) => item) : scored.map(({ item, fallbackScore }) => ({ ...item, popularity: fallbackScore })))
+    return withAudience.map(({ item }) => item)
       .sort((a, b) => (a.sortTimestamp ?? "").localeCompare(b.sortTimestamp ?? ""));
   } catch {
     return [];
   }
 }
 
-async function getExploreAlbums(year: number, sort: "popular" | "rated", page: number): Promise<RadarItem[]> {
-  const from = `${year}-01-01`;
-  const to = `${year}-12-31`;
-  const query = `country:US AND date:[${from} TO ${to}] AND status:official AND primarytype:album`;
+async function getExploreAlbums(year: number | undefined, sort: "popular" | "rated", page: number, genre?: string): Promise<RadarItem[]> {
+  const from = year ? `${year}-01-01` : "1900-01-01";
+  const to = year ? `${year}-12-31` : `${new Date().getFullYear()}-12-31`;
+  const genreTag = genre?.startsWith("tag:") ? genre.slice(4) : "";
+  const genreQuery = genreTag ? ` AND tag:\"${genreTag.replaceAll('"', "")}\"` : "";
+  const query = `country:US AND date:[${from} TO ${to}] AND status:official AND primarytype:album${genreQuery}`;
   const url = new URL("https://musicbrainz.org/ws/2/release/");
   url.searchParams.set("query", query);
   url.searchParams.set("fmt", "json");
@@ -345,10 +386,10 @@ async function getExploreAlbums(year: number, sort: "popular" | "rated", page: n
     const grouped = new Map<string, { item: RadarItem; score: number }>();
     for (const release of payload.releases ?? []) {
       const group = release["release-group"];
-      const date = release.date ?? group?.["first-release-date"] ?? "";
+      const date = group?.["first-release-date"] ?? release.date ?? "";
       if (release.country && release.country !== "US") continue;
       if (!group?.id || group["primary-type"]?.toLowerCase() !== "album") continue;
-      if (date.slice(0, 4) !== String(year)) continue;
+      if (year && date.slice(0, 4) !== String(year)) continue;
       const artist = release["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ") ?? "";
       if (isSoundtrackOrCompilation(group, group.title, artist)) continue;
       const item = mapAlbumRelease(release, group, date);
@@ -360,7 +401,7 @@ async function getExploreAlbums(year: number, sort: "popular" | "rated", page: n
     const popularity = await listenBrainzPopularity("release-group", candidates.map((item) => item.sourceId));
     const scored = candidates.map((item) => ({ ...item, popularity: popularity.get(item.sourceId) ?? 0 }));
     const withAudience = scored.filter((item) => item.popularity > 0);
-    const ranked = withAudience.length ? withAudience : candidates;
+    const ranked = withAudience;
     return ranked.sort((a, b) => sort === "rated"
       ? b.popularity - a.popularity || a.title.localeCompare(b.title)
       : b.popularity - a.popularity || a.title.localeCompare(b.title));
