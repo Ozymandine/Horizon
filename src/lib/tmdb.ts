@@ -60,6 +60,7 @@ export type TmdbMovieDetails = TmdbMovie & {
   videos?: { results: TmdbVideo[] };
   images?: { logos: { file_path: string; iso_639_1: string | null }[] };
   genres?: { id: number; name: string }[];
+  release_dates?: { results: { iso_3166_1: string; release_dates: { certification: string; release_date: string; type: number }[] }[] };
 };
 
 export type TmdbShowDetails = TmdbShow & {
@@ -157,7 +158,7 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
 export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos,images" });
+    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos,images,release_dates" });
   } catch {
     return null;
   }

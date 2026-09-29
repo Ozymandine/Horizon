@@ -23,12 +23,16 @@ export default async function MovieDetailPage({ params }: { params: Promise<{ id
     ?? movie.images?.logos?.find((logo) => logo.iso_639_1 === null)?.file_path;
   const logo = tmdbImage(logoPath ?? null, "original");
   const cast = movie.credits?.cast?.slice(0, 10) ?? [];
-  const releaseDate = movie.release_date ? new Date(`${movie.release_date}T12:00:00Z`) : null;
+  const usDates = movie.release_dates?.results.find((region) => region.iso_3166_1 === "US")?.release_dates ?? [];
+  const releaseDateText = usDates.find((release) => release.type === 3)?.release_date
+    ?? usDates.find((release) => release.release_date)?.release_date
+    ?? movie.release_date;
+  const releaseDate = releaseDateText ? new Date(releaseDateText) : null;
   const formattedDate = releaseDate?.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
   const radarItem: RadarItem = {
     source: "tmdb", sourceId: String(movie.id), type: "MOVIE", title: movie.title,
     displayDate: formattedDate ?? "Date TBA",
-    releaseDate: movie.release_date || null, sortTimestamp: movie.release_date ? `${movie.release_date}T12:00:00.000Z` : null,
+    releaseDate: releaseDateText?.slice(0, 10) || null, sortTimestamp: releaseDateText ? `${releaseDateText.slice(0, 10)}T12:00:00.000Z` : null,
     isApproximate: false, posterUrl: tmdbImage(movie.poster_path), backdropUrl: backdrop,
     description: movie.overview, externalUrl: `https://www.themoviedb.org/movie/${movie.id}`,
     tmdbId: movie.id, genreIds: movie.genre_ids ?? movie.genres?.map((genre) => genre.id) ?? [],
@@ -45,7 +49,7 @@ export default async function MovieDetailPage({ params }: { params: Promise<{ id
           <div className="max-w-3xl">
             <Link href="/" className="absolute top-8 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/20 px-4 py-2 text-sm text-slate-200 backdrop-blur-md transition hover:bg-white/10">← Upcoming</Link>
             {movie.tagline && <p className="mb-4 text-sm italic text-white/75">{movie.tagline}</p>}
-            {logo ? <Image src={logo} alt={movie.title} width={640} height={240} priority className="mb-5 max-h-32 w-auto max-w-full object-contain object-left sm:max-h-44" /> : <h1 className="mb-5 max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">{movie.title}</h1>}
+            {logo ? <><h1 className="sr-only">{movie.title}</h1><Image src={logo} alt={movie.title} width={640} height={240} priority className="mb-5 max-h-32 w-auto max-w-full object-contain object-left drop-shadow-[0_4px_18px_rgba(0,0,0,0.95)] sm:max-h-44" /></> : <h1 className="mb-5 max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">{movie.title}</h1>}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/85">{movie.genres?.map((genre, index) => <span key={genre.id} className="flex items-center gap-2">{index > 0 && <span aria-hidden className="text-white/40">•</span>}{genre.name}</span>)}</div>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <AddToTimelineButton item={radarItem} />
