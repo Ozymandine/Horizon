@@ -1,6 +1,7 @@
 import "server-only";
 import { getExploreMovies, getExploreShows, getUpcomingMovies, getUpcomingShows, tmdbImage } from "@/lib/tmdb";
 import { discoverShelves, type DiscoverShelf } from "@/lib/discover-shelves";
+import { isExplicitlyAiGenerated } from "@/lib/media-quality";
 
 export type RadarType = "MOVIE" | "SHOW" | "GAME" | "MUSIC";
 
@@ -344,6 +345,7 @@ async function getUpcomingAlbums(): Promise<RadarItem[]> {
       if (!group?.id || !["album", "single", "ep"].includes((group["primary-type"] ?? "").toLowerCase())) continue;
       const creditedArtist = release["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ") ?? "";
       if (isSoundtrackOrCompilation(group, group.title, creditedArtist)) continue;
+      if (isExplicitlyAiGenerated(group.title, creditedArtist, ...(group.tags ?? []).map((tag) => tag.name))) continue;
       if (!date || date < today.slice(0, date.length) || date > limit.slice(0, date.length)) continue;
       const existing = grouped.get(group.id);
       if (!existing || date.length > existing.date.length) grouped.set(group.id, { release, date, group });
@@ -392,6 +394,7 @@ async function getExploreAlbums(year: number | undefined, sort: "popular" | "rat
       if (year && date.slice(0, 4) !== String(year)) continue;
       const artist = release["artist-credit"]?.map((credit) => credit.name ?? credit.artist?.name).filter(Boolean).join(", ") ?? "";
       if (isSoundtrackOrCompilation(group, group.title, artist)) continue;
+      if (isExplicitlyAiGenerated(group.title, artist, ...(group.tags ?? []).map((tag) => tag.name))) continue;
       const item = mapAlbumRelease(release, group, date);
       const score = Number(release.score ?? 0);
       const current = grouped.get(group.id);

@@ -1,4 +1,5 @@
 import "server-only";
+import { isExplicitlyAiGenerated } from "@/lib/media-quality";
 
 const TMDB_API = "https://api.themoviedb.org/3";
 const IMAGE_BASE = "https://image.tmdb.org/t/p";
@@ -130,6 +131,7 @@ export async function getUpcomingMovies(): Promise<TmdbMovie[]> {
       .filter((movie) => movie.release_date >= today && movie.release_date <= futureLimit)
       // Keep the calendar centered on widely announced releases and drop community spam.
       .filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path))
+      .filter((movie) => !isExplicitlyAiGenerated(movie.title, movie.original_title, movie.overview))
       .filter((movie) => (movie.popularity ?? 0) >= 2 || (movie.vote_count ?? 0) >= 10)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
@@ -151,6 +153,7 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
     return shows
       .filter((show) => show.first_air_date >= today && show.first_air_date <= futureLimit)
       .filter((show) => show.original_language === "en" && Boolean(show.poster_path))
+      .filter((show) => !isExplicitlyAiGenerated(show.name, show.original_name, show.overview))
       .filter((show) => (show.popularity ?? 0) >= 1.5 || (show.vote_count ?? 0) >= 8)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
@@ -191,7 +194,8 @@ export async function getExploreMovies(options: { genreId?: number; year?: numbe
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),
   };
   const result = await tmdbFetch<TmdbList<TmdbMovie>>("/discover/movie", query);
-  return (result.results ?? []).filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path));
+  return (result.results ?? []).filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path)
+    && !isExplicitlyAiGenerated(movie.title, movie.original_title, movie.overview));
 }
 
 export async function getExploreShows(options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<TmdbShow[]> {
@@ -206,7 +210,8 @@ export async function getExploreShows(options: { genreId?: number; year?: number
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),
   };
   const result = await tmdbFetch<TmdbList<TmdbShow>>("/discover/tv", query);
-  return (result.results ?? []).filter((show) => show.original_language === "en" && Boolean(show.poster_path));
+  return (result.results ?? []).filter((show) => show.original_language === "en" && Boolean(show.poster_path)
+    && !isExplicitlyAiGenerated(show.name, show.original_name, show.overview));
 }
 
 export function tmdbImage(path: string | null, size: "w185" | "w342" | "w500" | "w780" | "original" = "w500") {
