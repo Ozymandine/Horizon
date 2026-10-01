@@ -13,5 +13,5 @@ export function returnLabel(path: string) {
   if (path.startsWith("/discover")) return "Discover";
   if (path.startsWith("/timeline")) return "Timeline";
   if (path.startsWith("/my-list")) return "My List";
-  return "Upcoming";
+  return "Discover";
 }

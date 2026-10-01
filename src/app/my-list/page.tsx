@@ -40,13 +40,14 @@ export default async function MyListPage() {
       {lists.length > 0 && <section className="mt-10 space-y-8">
         {lists.map((list) => <div key={list.id}>
           <h2 className="mb-4 text-xl font-semibold text-white">{list.name}</h2>
-          {list.items.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
+          {list.items.length ? <div className="grid grid-cols-2 justify-items-center gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4 xl:grid-cols-5">
             {list.items.map(({ entity }) => {
               const href = entity.tmdbId ? (entity.type === "SHOW" ? `/shows/${entity.tmdbId}` : `/movies/${entity.tmdbId}`)
                 : entity.source === "steam" && entity.sourceId ? `/releases/steam/${entity.sourceId}`
                 : entity.source === "musicbrainz" && entity.sourceId ? `/releases/musicbrainz/${entity.sourceId}`
+                : entity.source === "musicbrainz-recording" && entity.sourceId ? `/releases/musicbrainz-recording/${entity.sourceId}`
                 : `/entities/${entity.id}`;
-              return <Link key={entity.id} href={href} aria-label={`Open ${entity.title}`} title={entity.title} className={`group relative ${entity.type === "MUSIC" ? "aspect-square" : "aspect-[2/3]"} overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-lg shadow-black/25`}>
+              return <Link key={entity.id} href={href} aria-label={`Open ${entity.title}`} title={entity.title} className={`group relative w-full max-w-[205px] ${entity.type === "MUSIC" ? "aspect-square" : "aspect-[2/3]"} overflow-hidden rounded-[1.25rem] border border-white/10 bg-slate-950 shadow-lg shadow-black/25`}>
                 <MediaArtwork title={entity.title} type={entity.type} imageUrl={entity.posterUrl} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-3"><p className="line-clamp-2 text-sm font-semibold text-white">{entity.title}</p><p className="mt-1 text-[11px] text-white/75">{entity.displayDate}</p></div>
@@ -58,32 +59,28 @@ export default async function MyListPage() {
       {entities === null ? (
         <div className="glass mt-9 rounded-3xl p-7 text-sm text-slate-400">My List could not load just now. Refresh to try again.</div>
       ) : entities.length ? (
-        <div className="mt-9 space-y-3">
+        <div className="mt-9 grid grid-cols-2 justify-items-center gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {entities.map((entity) => {
             const [label, color] = category[entity.type];
-            const href = entity.tmdbId ? (entity.type === "SHOW" ? `/shows/${entity.tmdbId}` : `/movies/${entity.tmdbId}`) : `/entities/${entity.id}`;
+            const href = entity.tmdbId ? (entity.type === "SHOW" ? `/shows/${entity.tmdbId}` : `/movies/${entity.tmdbId}`)
+              : entity.source === "steam" && entity.sourceId ? `/releases/steam/${entity.sourceId}`
+              : entity.source === "musicbrainz" && entity.sourceId ? `/releases/musicbrainz/${entity.sourceId}`
+              : entity.source === "musicbrainz-recording" && entity.sourceId ? `/releases/musicbrainz-recording/${entity.sourceId}`
+              : `/entities/${entity.id}`;
             return (
-              <article key={entity.id} className="glass rounded-3xl p-4 sm:p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <Link href={href} aria-label={`Open ${entity.title}`} className="flex min-w-0 flex-1 items-center gap-4">
-                  <div className="size-20 shrink-0 overflow-hidden rounded-2xl border border-white/10">
-                    <MediaArtwork title={entity.title} type={entity.type} imageUrl={entity.posterUrl} fallbackUrls={entity.type === "GAME" && entity.sourceId ? [`https://cdn.cloudflare.steamstatic.com/steam/apps/${entity.sourceId}/library_600x900.jpg`] : []} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-[10px] font-semibold uppercase tracking-[.15em] ${color}`}>{label}</p>
-                    <h2 className="mt-1 truncate font-semibold text-white">{entity.title}</h2>
-                    <p className="mt-1 text-xs text-slate-400">{entity.displayDate}</p>
-                    {entity.review && <p className="mt-1.5 text-xs text-amber-200">★ {entity.review.rating}/5</p>}
-                  </div>
+              <article key={entity.id} className="glass relative w-full max-w-[205px] overflow-hidden rounded-2xl p-2.5">
+                <Link href={href} aria-label={`Open ${entity.title}`} title={entity.title} className={`group relative block ${entity.type === "MUSIC" ? "aspect-square" : "aspect-[2/3]"} overflow-hidden rounded-xl border border-white/10 bg-slate-950`}>
+                  <MediaArtwork title={entity.title} type={entity.type} imageUrl={entity.posterUrl} fallbackUrls={entity.type === "GAME" && entity.sourceId ? [`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${entity.sourceId}/library_600x900_2x.jpg`, `https://cdn.cloudflare.steamstatic.com/steam/apps/${entity.sourceId}/library_600x900.jpg`] : []} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-2.5"><p className={`text-[9px] font-semibold uppercase tracking-[.15em] ${color}`}>{label}</p><h2 className="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-white">{entity.title}</h2><p className="mt-1 line-clamp-1 text-[10px] text-white/75">{entity.displayDate}</p>{entity.review && <p className="mt-1 text-[10px] text-amber-200">★ {entity.review.rating}/5</p>}</div>
                 </Link>
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <details className="min-w-0">
+                    <summary className="cursor-pointer list-none truncate text-[10px] text-white/75 transition hover:text-white">{entity.review ? "Edit review" : "Rate & review"}</summary>
+                    <div className="absolute left-0 z-20 mt-2 w-[min(92vw,340px)] rounded-2xl border border-white/15 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl"><ReviewForm entityId={entity.id} initialRating={entity.review?.rating} initialComment={entity.review?.comment} /></div>
+                  </details>
                   <RemoveFromListButton entityId={entity.id} />
                 </div>
-                </div>
-                <details className="mt-4 border-t border-white/[.08] pt-3">
-                  <summary className="w-fit cursor-pointer list-none rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white">{entity.review ? "Edit rating or review" : "Rate and review"}</summary>
-                  <div className="mt-4 max-w-xl"><ReviewForm entityId={entity.id} initialRating={entity.review?.rating} initialComment={entity.review?.comment} /></div>
-                </details>
               </article>
             );
           })}

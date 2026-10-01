@@ -5,7 +5,9 @@ import { AddToTimelineButton } from "@/components/add-to-timeline-button";
 import { AddToMyListMenu } from "@/components/add-to-my-list-menu";
 import { NewsPanel } from "@/components/news-panel";
 import { VideoPlayer } from "@/components/video-player";
+import { WatchOptions } from "@/components/watch-options";
 import { getShowDetails, tmdbImage } from "@/lib/tmdb";
+import { getShowWatchOptions } from "@/lib/tmdb-watch";
 import type { RadarItem } from "@/lib/radar";
 import { returnLabel, safeReturnTo } from "@/lib/return-to";
 
@@ -14,7 +16,7 @@ export default async function ShowDetailPage({ params, searchParams }: { params:
   const backTo = safeReturnTo((await searchParams)?.returnTo);
   const id = Number(rawId);
   if (!Number.isSafeInteger(id) || id <= 0) notFound();
-  const show = await getShowDetails(id);
+  const [show, watchOptions] = await Promise.all([getShowDetails(id), getShowWatchOptions(id)]);
   if (!show) notFound();
 
   const backdrop = tmdbImage(show.backdrop_path, "original");
@@ -71,7 +73,7 @@ export default async function ShowDetailPage({ params, searchParams }: { params:
             return <div key={person.id} className="w-24 shrink-0 text-center"><div className="relative mx-auto mb-3 size-20 overflow-hidden rounded-full border border-white/10 bg-white/5">{image && <Image src={image} alt={person.name} fill sizes="80px" className="object-cover" />}</div><p className="line-clamp-2 text-xs font-semibold text-slate-100">{person.name}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-400">{person.character}</p></div>;
           })}</div></section>}
         </div>
-        <aside className="space-y-4"><NewsPanel title={show.name} /><div className="glass rounded-2xl p-4 text-xs leading-5 text-slate-400">Series details and artwork from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</div></aside>
+        <aside className="space-y-4"><WatchOptions options={watchOptions} /><NewsPanel title={show.name} /><div className="glass rounded-2xl p-4 text-xs leading-5 text-slate-400">Series details and artwork from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</div></aside>
       </div>
     </main>
   );

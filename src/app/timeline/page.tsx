@@ -41,7 +41,10 @@ async function getTrackedTimeline(): Promise<TimelineItem[]> {
       posterUrl: catalog.get(`${item.type}:${item.tmdbId}`)?.posterUrl ?? item.posterUrl,
       sortTimestamp: catalog.get(`${item.type}:${item.tmdbId}`)?.sortTimestamp ?? item.sortTimestamp?.toISOString() ?? null,
       dateEnd: item.dateEnd?.toISOString() ?? null,
-      href: catalog.get(`${item.type}:${item.tmdbId}`)?.href ?? (item.tmdbId ? (item.type === "SHOW" ? `/shows/${item.tmdbId}` : `/movies/${item.tmdbId}`) : `/entities/${item.id}`),
+      href: catalog.get(`${item.type}:${item.tmdbId}`)?.href ?? (item.source === "steam" && item.sourceId ? `/releases/steam/${item.sourceId}`
+        : item.source === "musicbrainz" && item.sourceId ? `/releases/musicbrainz/${item.sourceId}`
+          : item.source === "musicbrainz-recording" && item.sourceId ? `/releases/musicbrainz-recording/${item.sourceId}`
+            : item.tmdbId ? (item.type === "SHOW" ? `/shows/${item.tmdbId}` : `/movies/${item.tmdbId}`) : `/entities/${item.id}`),
     }));
   } catch {
     return [];

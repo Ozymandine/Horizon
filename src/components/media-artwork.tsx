@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 type ArtworkType = "MOVIE" | "SHOW" | "GAME" | "MUSIC" | "EVENT";
 
@@ -12,22 +13,25 @@ const artworkTone: Record<ArtworkType, { label: string; symbol: string; gradient
   EVENT: { label: "EVENT", symbol: "✦", gradient: "from-rose-950 via-slate-900 to-black" },
 };
 
-export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], className = "" }: {
+export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], className = "", priority = false }: {
   title: string;
   type: ArtworkType;
   imageUrl?: string | null;
   fallbackUrls?: string[];
   className?: string;
+  priority?: boolean;
 }) {
   const urls = [imageUrl, ...fallbackUrls].filter((url): url is string => Boolean(url));
   const [imageIndex, setImageIndex] = useState(0);
   const tone = artworkTone[type];
 
   if (urls[imageIndex]) {
-    return <img key={urls[imageIndex]} src={urls[imageIndex]} alt="" aria-hidden="true" loading="lazy" decoding="async" onLoad={(event) => {
+    return <Image key={urls[imageIndex]} src={urls[imageIndex]} alt="" aria-hidden="true" fill priority={priority} unoptimized sizes="(max-width: 640px) 50vw, 205px" onLoad={(event) => {
       const image = event.currentTarget;
-      if (image.naturalWidth < 240 || image.naturalHeight < 240) setImageIndex((current) => current + 1);
-    }} onError={() => setImageIndex((current) => current + 1)} className={`h-full w-full object-cover ${className}`} />;
+      const minWidth = type === "GAME" ? 180 : 240;
+      const minHeight = type === "GAME" ? 70 : 240;
+      if (image.naturalWidth < minWidth || image.naturalHeight < minHeight) setImageIndex((current) => current + 1);
+    }} onError={() => setImageIndex((current) => current + 1)} className={`object-cover ${className}`} />;
   }
 
   return (
@@ -36,7 +40,6 @@ export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], classNa
       <div className="relative flex max-w-full flex-col items-center gap-4 p-4 text-center">
         <span aria-hidden="true" className="grid size-14 place-items-center rounded-2xl border border-white/15 bg-black/15 text-3xl text-white/75">{tone.symbol}</span>
         <span className="text-[9px] font-semibold tracking-[.22em] text-white/60">{tone.label}</span>
-        <span className="line-clamp-3 max-w-full text-sm font-medium leading-tight text-white/90">{title}</span>
       </div>
     </div>
   );

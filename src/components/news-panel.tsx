@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { getGoogleNewsHeadlines, type HeadlinesResult } from "@/app/actions/news";
 
-export function NewsPanel({ title }: { title: string }) {
-  const [result, setResult] = useState<HeadlinesResult | null>(null);
+export function NewsPanel({ title, artist = "" }: { title: string; artist?: string }) {
+  const [resultState, setResultState] = useState<{ key: string; result: HeadlinesResult } | null>(null);
+  const key = `${title}\u0000${artist}`;
 
   useEffect(() => {
     let active = true;
-    getGoogleNewsHeadlines(title).then((data) => {
-      if (active) setResult(data);
+    getGoogleNewsHeadlines(title, artist).then((data) => {
+      if (active) setResultState({ key, result: data });
     });
     return () => { active = false; };
-  }, [title]);
+  }, [artist, key, title]);
+  const result = resultState?.key === key ? resultState.result : null;
 
   return (
     <section className="glass rounded-3xl p-5 sm:p-7">

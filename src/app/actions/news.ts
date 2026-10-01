@@ -23,13 +23,14 @@ export type HeadlinesResult =
 
 const parser = new Parser<Record<string, never>, FeedItem>();
 
-export async function getGoogleNewsHeadlines(rawTitle: string): Promise<HeadlinesResult> {
+export async function getGoogleNewsHeadlines(rawTitle: string, rawArtist = ""): Promise<HeadlinesResult> {
   if (typeof rawTitle !== "string") return { ok: false, error: "INVALID_TITLE" };
   const title = rawTitle.trim();
   if (!title || title.length > 160) return { ok: false, error: "INVALID_TITLE" };
+  const artist = typeof rawArtist === "string" ? rawArtist.trim().slice(0, 160) : "";
 
   const feedUrl = new URL("https://news.google.com/rss/search");
-  feedUrl.searchParams.set("q", title);
+  feedUrl.searchParams.set("q", artist ? `"${title}" "${artist}"` : `"${title}"`);
   feedUrl.searchParams.set("hl", "en-US");
   feedUrl.searchParams.set("gl", "US");
   feedUrl.searchParams.set("ceid", "US:en");
@@ -43,10 +44,15 @@ export async function getGoogleNewsHeadlines(rawTitle: string): Promise<Headline
     if (!response.ok) return { ok: false, error: "FEED_UNAVAILABLE" };
 
     const feed = await parser.parseString(await response.text());
+    const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const normalizedTitle = normalize(title);
+    const normalizedArtist = normalize(artist);
     const headlines = feed.items.flatMap((item): NewsHeadline[] => {
       const headline = item.title?.trim();
       const url = item.link?.trim();
       if (!headline || !url) return [];
+      const normalizedHeadline = normalize(headline);
+      if (!normalizedHeadline.includes(normalizedTitle) || normalizedArtist && !normalizedHeadline.includes(normalizedArtist)) return [];
 
       const rawDate = item.isoDate ?? item.pubDate;
       const timestamp = rawDate ? Date.parse(rawDate) : Number.NaN;

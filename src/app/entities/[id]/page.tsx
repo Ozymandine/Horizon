@@ -5,9 +5,10 @@ export default async function EntityPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   if (!process.env.DATABASE_URL || !id) notFound();
 
+  let entity;
   try {
     const { prisma } = await import("@/lib/prisma");
-    const entity = await prisma.entity.findUnique({
+    entity = await prisma.entity.findUnique({
       where: { id },
       include: {
         credits: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] },
@@ -15,9 +16,9 @@ export default async function EntityPage({ params }: { params: Promise<{ id: str
         eventDates: { orderBy: { eventTime: "asc" } },
       },
     });
-    if (!entity) notFound();
-    return <EntityDetail entity={entity} />;
   } catch {
     notFound();
   }
+  if (!entity) notFound();
+  return <EntityDetail entity={entity} />;
 }

@@ -17,10 +17,68 @@ export const backgroundOptions = [
   { id: "black-berry", label: "Blackberry + Berry", value: "linear-gradient(135deg, #201a32 0%, #4a243e 100%)" },
 ] as const;
 
-export type BackgroundId = (typeof backgroundOptions)[number]["id"];
+export const defaultGradient = { first: "#0b2540", second: "#123d35" };
+
+function notifyBackgroundPreference() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("horizon:background-changed"));
+}
+
+export function getBackgroundPreferenceSnapshot() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("horizon-background") ?? "";
+}
+
+export function subscribeBackgroundPreference(onChange: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener("horizon:background-changed", onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener("horizon:background-changed", onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+export function gradientColors(preference: string) {
+  if (preference) {
+    try {
+      const value = JSON.parse(preference) as { first?: string; second?: string };
+      if (value.first && value.second) return { first: value.first, second: value.second };
+    } catch { /* Named presets are resolved below. */ }
+    const preset = backgroundOptions.find((option) => option.id === preference);
+    if (preset) {
+      const found = preset.value.match(/#[\da-f]{6}/gi) ?? [];
+      return { first: found[0] ?? defaultGradient.first, second: found[1] ?? defaultGradient.second };
+    }
+  }
+  return defaultGradient;
+}
 
 export function applyBackground(id: string) {
   const selected = backgroundOptions.find((option) => option.id === id) ?? backgroundOptions[0];
   document.documentElement.style.setProperty("--horizon-background", selected.value);
   localStorage.setItem("horizon-background", selected.id);
+  notifyBackgroundPreference();
+}
+
+export function applyGradient(first: string, second: string) {
+  const isHex = (value: string) => /^#[\da-f]{6}$/i.test(value);
+  const colors = { first: isHex(first) ? first : defaultGradient.first, second: isHex(second) ? second : defaultGradient.second };
+  document.documentElement.style.setProperty("--horizon-background", `linear-gradient(135deg, ${colors.first} 0%, ${colors.second} 100%)`);
+  localStorage.setItem("horizon-background", JSON.stringify(colors));
+  notifyBackgroundPreference();
+}
+
+export function applyStoredBackground(preference: string | null) {
+  if (!preference) {
+    applyBackground(backgroundOptions[0].id);
+    return;
+  }
+  try {
+    const colors = JSON.parse(preference) as { first?: string; second?: string };
+    if (/^#[\da-f]{6}$/i.test(colors.first ?? "") && /^#[\da-f]{6}$/i.test(colors.second ?? "")) {
+      document.documentElement.style.setProperty("--horizon-background", `linear-gradient(135deg, ${colors.first} 0%, ${colors.second} 100%)`);
+      return;
+    }
+  } catch { /* Named presets are handled by applyBackground. */ }
+  applyBackground(preference);
 }

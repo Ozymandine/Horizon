@@ -3,12 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { FloatingDock } from "@/components/floating-dock";
-import { applyBackground, backgroundOptions } from "@/lib/background-options";
+import { SpotifyController } from "@/components/spotify-controller";
+import { applyStoredBackground } from "@/lib/background-options";
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   useEffect(() => {
-    applyBackground(localStorage.getItem("horizon-background") ?? backgroundOptions[0].id);
+    applyStoredBackground(localStorage.getItem("horizon-background"));
   }, []);
-  return <>{children}{pathname === "/login" ? null : <FloatingDock />}</>;
+  return <>{children}{pathname === "/login" || pathname === "/spotify/callback" ? null : <><SpotifyController /><FloatingDock /></>}</>;
 }

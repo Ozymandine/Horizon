@@ -101,9 +101,18 @@ export async function tmdbFetch<T>(path: string, query: Record<string, string> =
 function dateRange() {
   const start = new Date();
   const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 18);
+  end.setUTCFullYear(end.getUTCFullYear() + 3);
   const iso = (date: Date) => date.toISOString().slice(0, 10);
-  return { today: iso(start), futureLimit: iso(end) };
+  return { today: iso(start), yearStart: `${start.getUTCFullYear()}-01-01`, futureLimit: iso(end), futureYear: end.getUTCFullYear() };
+}
+
+function upcomingDate(value: string, today: string, futureLimit: string, futureYear: number) {
+  if (/^\d{4}$/.test(value)) return Number(value) > Number(today.slice(0, 4)) && Number(value) <= futureYear;
+  if (/^\d{4}-\d{2}$/.test(value)) {
+    const monthDate = `${value}-01`;
+    return monthDate >= today.slice(0, 7) + "-01" && monthDate <= futureLimit;
+  }
+  return Boolean(value && value >= today && value <= futureLimit);
 }
 
 async function paginated<T>(path: string, query: Record<string, string>, pageCount = 3): Promise<T[]> {
@@ -115,24 +124,19 @@ async function paginated<T>(path: string, query: Record<string, string>, pageCou
 
 export async function getUpcomingMovies(): Promise<TmdbMovie[]> {
   try {
-    const { today, futureLimit } = dateRange();
+    const { today, yearStart, futureLimit, futureYear } = dateRange();
     const movies = await paginated<TmdbMovie>("/discover/movie", {
       include_adult: "false",
       include_video: "false",
       region: "US",
-      with_origin_country: "US",
-      with_original_language: "en",
-      "with_runtime.gte": "60",
-      "primary_release_date.gte": today,
+      "primary_release_date.gte": yearStart,
       "primary_release_date.lte": futureLimit,
       sort_by: "popularity.desc",
-    }, 5);
+    }, 12);
     return movies
-      .filter((movie) => movie.release_date >= today && movie.release_date <= futureLimit)
-      // Keep the calendar centered on widely announced releases and drop community spam.
-      .filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path))
+      .filter((movie) => upcomingDate(movie.release_date, today, futureLimit, futureYear))
+      .filter((movie) => Boolean(movie.poster_path))
       .filter((movie) => !isExplicitlyAiGenerated(movie.title, movie.original_title, movie.overview))
-      .filter((movie) => (movie.popularity ?? 0) >= 2 || (movie.vote_count ?? 0) >= 10)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
@@ -141,20 +145,17 @@ export async function getUpcomingMovies(): Promise<TmdbMovie[]> {
 
 export async function getUpcomingShows(): Promise<TmdbShow[]> {
   try {
-    const { today, futureLimit } = dateRange();
+    const { today, yearStart, futureLimit, futureYear } = dateRange();
     const shows = await paginated<TmdbShow>("/discover/tv", {
       include_null_first_air_dates: "false",
-      with_origin_country: "US",
-      with_original_language: "en",
-      "first_air_date.gte": today,
+      "first_air_date.gte": yearStart,
       "first_air_date.lte": futureLimit,
       sort_by: "popularity.desc",
-    }, 5);
+    }, 12);
     return shows
-      .filter((show) => show.first_air_date >= today && show.first_air_date <= futureLimit)
-      .filter((show) => show.original_language === "en" && Boolean(show.poster_path))
+      .filter((show) => upcomingDate(show.first_air_date, today, futureLimit, futureYear))
+      .filter((show) => Boolean(show.poster_path))
       .filter((show) => !isExplicitlyAiGenerated(show.name, show.original_name, show.overview))
-      .filter((show) => (show.popularity ?? 0) >= 1.5 || (show.vote_count ?? 0) >= 8)
       .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   } catch {
     return [];
@@ -184,33 +185,28 @@ export async function getExploreMovies(options: { genreId?: number; year?: numbe
     include_adult: "false",
     include_video: "false",
     region: "US",
-    with_origin_country: "US",
-    with_original_language: "en",
     sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
-    // Crowd signal keeps spammy and synthetic catalogue entries out of exploration.
-    "vote_count.gte": options.sort === "rated" ? "50" : "10",
+    ...(options.sort === "rated" ? { "vote_count.gte": "10" } : {}),
     ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
     ...(options.year ? { primary_release_year: String(options.year) } : {}),
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),
   };
   const result = await tmdbFetch<TmdbList<TmdbMovie>>("/discover/movie", query);
-  return (result.results ?? []).filter((movie) => movie.original_language === "en" && Boolean(movie.poster_path)
+  return (result.results ?? []).filter((movie) => Boolean(movie.poster_path)
     && !isExplicitlyAiGenerated(movie.title, movie.original_title, movie.overview));
 }
 
 export async function getExploreShows(options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<TmdbShow[]> {
   const query: Record<string, string> = {
     include_null_first_air_dates: "false",
-    with_origin_country: "US",
-    with_original_language: "en",
     sort_by: options.sort === "rated" ? "vote_average.desc" : "popularity.desc",
-    "vote_count.gte": options.sort === "rated" ? "30" : "8",
+    ...(options.sort === "rated" ? { "vote_count.gte": "10" } : {}),
     ...(options.genreId ? { with_genres: String(options.genreId) } : {}),
     ...(options.year ? { first_air_date_year: String(options.year) } : {}),
     page: String(Math.min(20, Math.max(1, options.page ?? 1))),
   };
   const result = await tmdbFetch<TmdbList<TmdbShow>>("/discover/tv", query);
-  return (result.results ?? []).filter((show) => show.original_language === "en" && Boolean(show.poster_path)
+  return (result.results ?? []).filter((show) => Boolean(show.poster_path)
     && !isExplicitlyAiGenerated(show.name, show.original_name, show.overview));
 }
 
