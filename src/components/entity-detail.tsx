@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Entity, EntityCredit, EntityMedia, EventDetail } from "@/generated/prisma/client";
+import { ScrollRail } from "@/components/scroll-rail";
 import { NewsPanel } from "@/components/news-panel";
 
 type EntityWithDetails = Entity & {
@@ -40,7 +41,7 @@ export function EntityDetail({ entity }: { entity: EntityWithDetails }) {
       <div className="mx-auto grid max-w-7xl gap-8 px-5 pt-9 sm:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-8">
           {entity.description && <p className="max-w-3xl text-sm leading-7 text-slate-300">{entity.description}</p>}
-          {entity.credits.length > 0 && <section><h2 className="mb-4 text-lg font-semibold text-white">Cast &amp; creators</h2><div className="flex gap-4 overflow-x-auto pb-2">{entity.credits.map((credit) => <div key={credit.id} className="w-20 shrink-0 text-center"><div className="relative mx-auto mb-2 size-16 overflow-hidden rounded-full border border-white/10 bg-white/5">{credit.imageUrl && <Image src={credit.imageUrl} alt={credit.name} fill sizes="64px" className="object-cover" />}</div><p className="line-clamp-2 text-xs font-medium text-slate-200">{credit.name}</p><p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{credit.characterName ?? credit.role.toLowerCase().replaceAll("_", " ")}</p></div>)}</div></section>}
+          {entity.credits.length > 0 && <section><h2 className="mb-4 text-lg font-semibold text-white">Cast &amp; creators</h2><ScrollRail label="cast and creators">{entity.credits.map((credit) => <div key={credit.id} className="w-20 shrink-0 text-center"><div className="relative mx-auto mb-2 size-16 overflow-hidden rounded-full border border-white/10 bg-white/5">{credit.imageUrl && <Image src={credit.imageUrl} alt={credit.name} fill sizes="64px" className="object-cover" />}</div><p className="line-clamp-2 text-xs font-medium text-slate-200">{credit.name}</p><p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{credit.characterName ?? credit.role.toLowerCase().replaceAll("_", " ")}</p></div>)}</ScrollRail></section>}
           {entity.eventDates.length > 0 && <section><h2 className="mb-4 text-lg font-semibold text-white">Dates &amp; venues</h2><div className="space-y-2">{entity.eventDates.map((event) => <div key={event.id} className="glass flex flex-wrap justify-between gap-2 rounded-xl p-4 text-sm"><span className="text-white">{event.venue ?? event.city ?? "Venue TBA"}{event.city && event.venue ? ` · ${event.city}` : ""}</span><span className="text-slate-400">{event.eventTime?.toLocaleString() ?? "Time TBA"}</span></div>)}</div></section>}
           {entity.media.length > 0 && <section><h2 className="mb-4 text-lg font-semibold text-white">Links &amp; videos</h2><div className="grid gap-2 sm:grid-cols-2">{entity.media.map((media) => <a key={media.id} href={media.url} target="_blank" rel="noreferrer" className="glass flex items-center justify-between rounded-xl p-4 text-sm text-slate-200 hover:bg-white/10"><span>{media.title ?? media.provider ?? media.kind.toLowerCase().replaceAll("_", " ")}</span><span aria-hidden="true" className="text-slate-500">↗</span></a>)}</div></section>}
         </div>

@@ -14,6 +14,17 @@ export function AddToMyListMenu({ item }: { item: RadarItem }) {
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); setCreating(false); trigger.current?.focus(); } };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
+  }, [open]);
 
   useEffect(() => {
     if (creating) input.current?.focus();
@@ -53,11 +64,11 @@ export function AddToMyListMenu({ item }: { item: RadarItem }) {
   }
 
   return (
-    <div className="relative">
-      <button type="button" onClick={showMenu} aria-expanded={open} className="detail-action">
-        <span aria-hidden="true">＋</span> Add to My List <span aria-hidden="true" className="text-xs">⌄</span>
+    <div ref={root} className="relative">
+      <button ref={trigger} type="button" onClick={showMenu} aria-expanded={open} className="detail-action">
+        Add to My List
       </button>
-      {open && <div className="glass absolute bottom-[calc(100%+10px)] left-0 z-30 min-w-56 overflow-hidden rounded-2xl p-1.5 shadow-2xl shadow-black/50">
+      {open && <div className="glass absolute top-[calc(100%+10px)] left-0 z-30 min-w-56 overflow-hidden rounded-2xl p-1.5 shadow-2xl shadow-black/50">
         <button type="button" onClick={() => { setCreating(true); setMessage(""); }} className="block w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white transition hover:bg-white/10">Create list</button>
         {lists.length > 0 && <div className="my-1 border-t border-white/10 pt-1">{lists.map((list) => <button key={list.id} type="button" disabled={pending} onClick={() => addTo(list)} className="block w-full truncate rounded-xl px-3 py-2.5 text-left text-sm text-slate-200 transition hover:bg-white/10 disabled:opacity-50">{list.name}</button>)}</div>}
         {!lists.length && <p className="px-3 pb-2 pt-1 text-xs text-slate-500">{pending ? "Loading lists…" : "Create a list to get started."}</p>}

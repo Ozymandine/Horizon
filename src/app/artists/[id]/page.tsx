@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ScrollRail } from "@/components/scroll-rail";
 import { MusicTrackList } from "@/components/music-track-list";
 import { SpotifyArtistCatalog } from "@/components/spotify-music";
 import { MediaArtwork } from "@/components/media-artwork";
@@ -43,12 +44,12 @@ export default async function ArtistPage({ params, searchParams }: { params: Pro
     <div><h2 className="text-2xl font-semibold text-white">Unreleased or date not listed</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-white/65">The catalog has no first-release date for these entries, so it cannot confirm whether they are unreleased.</p></div>
     {undatedCategories.map((category) => <section key={`undated-${category.label}`}>
       <h3 className="mb-3 text-lg font-medium text-white">{category.label}</h3>
-      <div className="flex snap-x gap-3 overflow-x-auto pb-3">
+      <ScrollRail label={category.label}>
         {category.items.map((album) => <Link key={album.sourceId} href={`${album.href}?returnTo=${encodeURIComponent(`/artists/${artist.id}`)}`} className="group w-[158px] shrink-0 snap-start sm:w-[174px]">
           <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-lg shadow-black/20"><MediaArtwork title={album.title} type="MUSIC" imageUrl={album.posterUrl} fallbackUrls={album.posterFallbackUrls} className="transition duration-300 group-hover:scale-[1.035]" /></div>
           <h4 className="mt-2 line-clamp-1 text-sm font-medium text-white">{album.title}</h4><p className="mt-1 line-clamp-1 text-xs text-white/65">Date not listed</p>
         </Link>)}
-      </div>
+      </ScrollRail>
     </section>)}
   </section> : null;
 
@@ -78,12 +79,12 @@ export default async function ArtistPage({ params, searchParams }: { params: Pro
         <div className="flex items-end justify-between"><div><h2 className="text-2xl font-semibold text-white">Discography</h2><p className="mt-1 text-sm text-white/65">Albums, singles, EPs, and discs from the music catalog.</p></div></div>
         {categories.map((category) => <section key={category.label}>
           <h3 className="mb-3 text-lg font-medium text-white">{category.label}</h3>
-          <div className="flex snap-x gap-3 overflow-x-auto pb-3">
+          <ScrollRail label={category.label}>
             {category.items.map((album) => <Link key={album.sourceId} href={`${album.href}?returnTo=${encodeURIComponent(`/artists/${artist.id}`)}`} className="group w-[158px] shrink-0 snap-start sm:w-[174px]">
               <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/30 shadow-lg shadow-black/20"><MediaArtwork title={album.title} type="MUSIC" imageUrl={album.posterUrl} fallbackUrls={album.posterFallbackUrls} className="transition duration-300 group-hover:scale-[1.035]" /></div>
               <h4 className="mt-2 line-clamp-1 text-sm font-medium text-white">{album.title}</h4><p className="mt-1 line-clamp-1 text-xs text-white/65">{discographyDate(album)}</p>
             </Link>)}
-          </div>
+          </ScrollRail>
         </section>)}
         {undatedReleases}
         {!artist.albums.length && <p className="glass rounded-2xl p-5 text-sm text-white/70">No cataloged releases are available for this artist yet.</p>}

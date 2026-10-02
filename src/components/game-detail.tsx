@@ -46,7 +46,6 @@ export function GameDetail({ item, steam, rawg, backTo }: {
   const screenshots = steam?.screenshots ?? rawg?.screenshots ?? [];
   const trailers = steam?.trailers ?? rawg?.trailers ?? [];
   const cover = steam?.headerImage ?? rawg?.backgroundImage ?? item.backdropUrl ?? item.posterUrl;
-  const backdrop = steam?.background ?? screenshots[0] ?? rawg?.backgroundImage ?? item.backdropUrl;
   const developers = steam?.developers ?? rawg?.developers ?? [];
   const publishers = steam?.publishers ?? rawg?.publishers ?? [];
   const genres = steam?.genres ?? rawg?.genres ?? item.tags ?? [];
@@ -67,15 +66,13 @@ export function GameDetail({ item, steam, rawg, backTo }: {
   ];
 
   return <main className={styles.page}>
-    {backdrop && <div className={styles.backdrop} aria-hidden="true" style={{ backgroundImage: `url("${backdrop}")` }} />}
     <div className={styles.content}>
       <Link href={backTo} className={styles.back}><ArrowLeft size={16} aria-hidden="true" />{returnLabel(backTo)}</Link>
-      <div className={styles.heading}><p className={styles.eyebrow}><Gamepad2 size={15} aria-hidden="true" />Games</p><h1>{item.title}</h1></div>
       <section className={styles.storePanel} aria-label={`${item.title} overview`}>
         <GameMediaGallery title={item.title} media={media} />
         <div className={styles.summary}>
           <div className={styles.headerArt}>{cover ? <Image src={cover} alt={`${item.title} game artwork`} fill sizes="(max-width: 900px) 100vw, 360px" className={styles.headerImage} /> : <div className={styles.artFallback}><Gamepad2 size={36} aria-hidden="true" /><span>{item.title}</span></div>}</div>
-          <h2 className={styles.summaryTitle}>{item.title}</h2>
+          <h1 className={styles.summaryTitle}>{item.title}</h1>
           {shortDescription && <p className={styles.summaryDescription}>{shortDescription}</p>}
           <dl className={styles.metadata}>{info.map((entry) => <div key={entry.label}><dt>{entry.label}</dt><dd>{entry.value}</dd></div>)}</dl>
           {steam?.recommendations != null && <div className={styles.review}><Star size={15} aria-hidden="true" /><span><strong>{steam.recommendations.toLocaleString()}</strong> Steam recommendations</span></div>}

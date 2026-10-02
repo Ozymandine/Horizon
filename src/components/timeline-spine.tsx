@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Clock3 } from "lucide-react";
 import { MediaArtwork } from "@/components/media-artwork";
+import { ScrollRail } from "@/components/scroll-rail";
 
 export type TimelineItem = {
   id: string;
@@ -58,7 +59,6 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
   const initialPosition = Math.max(0, months.findIndex((index) => index >= todayIndex));
   const [position, setPosition] = useState<number | null>(null);
   const [mode, setMode] = useState<"timeline" | "calendar">("timeline");
-  const [dragging, setDragging] = useState(false);
   const safePosition = Math.max(0, Math.min(Math.max(0, months.length - 1), position ?? initialPosition));
   const selectedMonthIndex = months.length ? months[Math.round(safePosition)] : todayIndex;
   const currentMonth = dateFromMonthIndex(selectedMonthIndex);
@@ -72,18 +72,18 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
   function renderTimelineMonth(index: number) {
     const entries = scheduledByMonth.get(index) ?? [];
     const month = dateFromMonthIndex(index);
-    const columns = `repeat(${Math.max(1, entries.length)}, minmax(128px, 1fr))`;
-    return <section key={index} aria-label={`${monthLabel(month)} timeline`} style={{ flex: `0 0 ${100 / totalMonths}%` }} className="relative h-[450px] px-5 pb-8 pt-6 sm:px-8">
+    return <section key={index} aria-label={`${monthLabel(month)} timeline`} style={{ flex: `0 0 ${100 / totalMonths}%`, minWidth: 0 }} className="relative h-[340px] px-5 pb-8 pt-6 sm:px-8">
       <div className="absolute inset-x-7 bottom-5 h-px bg-white/25 sm:inset-x-12" />
-      <div className="relative grid h-full items-end gap-4 overflow-x-auto" style={{ gridTemplateColumns: columns }}>
-        {entries.map((item) => <div key={item.id} className="relative z-10 flex h-full min-w-[128px] flex-col items-center justify-end">
-          <Link href={itemHref(item)} aria-label={`${item.title}, ${dayLabel(item)}`} title={item.title} className="block aspect-[2/3] w-full max-w-[150px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-lg shadow-black/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80">
+      <ScrollRail label={`${monthLabel(month)} releases`} trackClassName="timeline-card-track">
+        {entries.map((item) => <div key={item.id} className="relative z-10 flex w-[142px] shrink-0 flex-col items-center justify-end">
+          <Link href={itemHref(item)} aria-label={`${item.title}, ${dayLabel(item)}`} title={item.title} className="relative block h-[198px] w-[132px] overflow-hidden rounded-xl border border-white/10 bg-slate-950 shadow-lg shadow-black/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80">
             <MediaArtwork title={item.title} type={item.type} imageUrl={item.posterUrl} />
           </Link>
-          <p className="relative mt-2 pb-6 text-center text-xs font-medium text-white/90 after:absolute after:left-1/2 after:top-4 after:h-9 after:w-[2px] after:-translate-x-1/2 after:bg-cyan-200/80">{dayLabel(item)}</p>
+          <p className="mt-2 w-full truncate text-center text-xs font-semibold text-white" title={item.title}>{item.title}</p>
+          <p className="relative mt-1 pb-6 text-center text-xs font-medium text-white/80 after:absolute after:left-1/2 after:top-4 after:h-9 after:w-[2px] after:-translate-x-1/2 after:bg-cyan-200/80">{dayLabel(item)}</p>
           <span aria-hidden="true" className="absolute -bottom-[6px] z-10 size-3 rounded-full border-2 border-slate-950 bg-cyan-200 shadow-[0_0_18px_rgba(103,232,249,.6)]" />
         </div>)}
-      </div>
+      </ScrollRail>
     </section>;
   }
 
@@ -113,15 +113,11 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
       <div><span className="mx-auto grid size-12 place-items-center rounded-full border border-white/15 bg-white/[.06] text-cyan-100"><Clock3 size={20} /></span><h3 className="mt-4 text-lg font-medium text-white">Your timeline is ready</h3><p className="mt-2 max-w-md text-sm leading-6 text-white/75">Add a release with a confirmed date to see it here. Your saved items without a date will appear below.</p></div>
     </div> : mode === "timeline" ? <>
       <div className="glass overflow-hidden rounded-[1.75rem]" aria-label="Monthly release timeline">
-        <div className={`flex ${dragging ? "transition-none" : "transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]"}`} style={{ width: `${totalMonths * 100}%`, transform: `translate3d(-${safePosition / totalMonths * 100}%, 0, 0)` }}>
+        <div className="flex transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]" style={{ width: `${totalMonths * 100}%`, transform: `translate3d(-${safePosition / totalMonths * 100}%, 0, 0)` }}>
           {months.map(renderTimelineMonth)}
         </div>
       </div>
-      {months.length > 1 && <label className="glass flex items-center gap-3 rounded-full px-4 py-3 text-[10px] text-white/75 sm:gap-5 sm:px-5 sm:text-xs">
-        <span className="min-w-16 sm:min-w-28">{monthLabel(dateFromMonthIndex(months[0]))}</span>
-        <input type="range" min={0} max={months.length - 1} step="0.01" value={safePosition} onPointerDown={() => setDragging(true)} onPointerUp={() => setDragging(false)} onPointerCancel={() => setDragging(false)} onChange={(event) => moveTo(Number(event.target.value))} aria-label="Slide through months with releases" className="h-1.5 flex-1 cursor-ew-resize touch-none accent-cyan-200" />
-        <span className="min-w-16 text-right sm:min-w-28">{monthLabel(dateFromMonthIndex(months[months.length - 1]))}</span>
-      </label>}
+      {months.length > 1 && <p className="text-center text-xs text-white/60">Month {Math.round(safePosition) + 1} of {months.length} · Use the month arrows to browse releases</p>}
     </> : <div className="glass rounded-[1.75rem] p-4 sm:p-7">
       <div className="mb-3 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-[.15em] text-white/75 sm:text-xs">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day} className="py-2">{day}</span>)}</div>
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">

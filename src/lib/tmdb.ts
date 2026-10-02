@@ -53,24 +53,42 @@ export type TmdbVideo = {
 };
 
 export type TmdbMovieDetails = TmdbMovie & {
+  status?: string;
+  budget?: number;
+  revenue?: number;
+  homepage?: string;
+  production_countries?: { name: string }[];
+  spoken_languages?: { english_name: string }[];
   runtime?: number | null;
   tagline?: string;
   original_language?: string;
   production_companies?: { id: number; name: string; logo_path: string | null }[];
-  credits?: { cast: TmdbPerson[] };
+  credits?: { cast: TmdbPerson[]; crew?: { id: number; name: string; job: string; department: string }[] };
   videos?: { results: TmdbVideo[] };
-  images?: { logos: { file_path: string; iso_639_1: string | null }[] };
+  images?: { logos: { file_path: string; iso_639_1: string | null }[]; backdrops?: { file_path: string }[] };
+  recommendations?: TmdbList<TmdbMovie>;
   genres?: { id: number; name: string }[];
   release_dates?: { results: { iso_3166_1: string; release_dates: { certification: string; release_date: string; type: number }[] }[] };
 };
 
 export type TmdbShowDetails = TmdbShow & {
+  tagline?: string;
+  homepage?: string;
+  episode_run_time?: number[];
+  last_air_date?: string;
+  origin_country?: string[];
+  created_by?: { id: number; name: string }[];
+  networks?: { id: number; name: string }[];
+  production_companies?: { id: number; name: string }[];
+  next_episode_to_air?: { name: string; air_date: string; season_number: number; episode_number: number } | null;
+  seasons?: { id: number; name: string; overview: string; poster_path: string | null; air_date: string | null; episode_count: number; season_number: number }[];
   number_of_seasons?: number;
   number_of_episodes?: number;
   status?: string;
-  credits?: { cast: TmdbPerson[] };
+  credits?: { cast: TmdbPerson[]; crew?: { id: number; name: string; job: string; department: string }[] };
   videos?: { results: TmdbVideo[] };
-  images?: { logos: { file_path: string; iso_639_1: string | null }[] };
+  images?: { logos: { file_path: string; iso_639_1: string | null }[]; backdrops?: { file_path: string }[] };
+  recommendations?: TmdbList<TmdbShow>;
   genres?: { id: number; name: string }[];
 };
 
@@ -165,7 +183,7 @@ export async function getUpcomingShows(): Promise<TmdbShow[]> {
 export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos,images,release_dates" });
+    return await tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { append_to_response: "credits,videos,images,release_dates,recommendations", include_image_language: "en,null" });
   } catch {
     return null;
   }
@@ -174,7 +192,7 @@ export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | nu
 export async function getShowDetails(id: number): Promise<TmdbShowDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos,images" });
+    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos,images,recommendations", include_image_language: "en,null" });
   } catch {
     return null;
   }
@@ -210,6 +228,6 @@ export async function getExploreShows(options: { genreId?: number; year?: number
     && !isExplicitlyAiGenerated(show.name, show.original_name, show.overview));
 }
 
-export function tmdbImage(path: string | null, size: "w185" | "w342" | "w500" | "w780" | "original" = "w500") {
+export function tmdbImage(path: string | null, size: "w185" | "w342" | "w500" | "w780" | "w1280" | "original" = "w500") {
   return path ? `${IMAGE_BASE}/${size}${path}` : null;
 }

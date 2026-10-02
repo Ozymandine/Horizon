@@ -17,15 +17,15 @@ export function detailLink(item: RadarItem, returnTo: string) {
 export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { items: RadarItem[]; returnTo: string; onFeature: (image: string | null) => void; market?: string }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const [reduced, setReduced] = useState(false);
-  const [focused, setFocused] = useState(false);
+  const [failedLogo, setFailedLogo] = useState<string | null>(null);
   const router = useRouter();
   const slides = items.filter((item) => item.backdropUrl || item.posterUrl).slice(0, 6);
   const activeIndex = slides.length ? index % slides.length : 0;
   const item = slides[activeIndex];
   const image = (item?.backdropUrl ?? item?.posterUrl)?.replace("/original/", "/w780/") ?? null;
   const callback = useRef(onFeature);
+  const carousel = useRef<HTMLElement>(null);
   useEffect(() => { callback.current = onFeature; }, [onFeature]);
   useEffect(() => { callback.current(image); }, [image]);
   useEffect(() => {
@@ -35,10 +35,10 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
     return () => match.removeEventListener("change", update);
   }, []);
   useEffect(() => {
-    if (paused || hovered || reduced || focused || slides.length < 2) return;
-    const timer = window.setInterval(() => { if (!document.hidden) setIndex((value) => (value + 1) % slides.length); }, 8500);
+    if (paused || reduced || slides.length < 2) return;
+    const timer = window.setInterval(() => { if (!document.hidden && !carousel.current?.querySelector('[aria-expanded="true"]')) setIndex((value) => (value + 1) % slides.length); }, 15000);
     return () => window.clearInterval(timer);
-  }, [paused, hovered, reduced, focused, slides.length]);
+  }, [paused, reduced, slides.length, activeIndex]);
   function playMusic() {
     if (!item) return;
     const request = { title: item.title, artist: item.artistName ?? "", artwork: item.posterUrl ?? undefined, kind: item.source === "apple-song" ? "track" : "album", market, returnTo };
@@ -47,15 +47,14 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
       router.push(`/settings?returnTo=${encodeURIComponent(returnTo)}`);
     } else window.dispatchEvent(new CustomEvent("horizon:spotify-play", { detail: request }));
   }
-  return <section className={`cinematic-hero ${item?.type === "MUSIC" ? "cinematic-hero-music" : ""}`} aria-roledescription="carousel" aria-label="Featured titles" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocusCapture={() => setFocused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
+  return <section ref={carousel} className={`cinematic-hero ${item?.type === "MUSIC" ? "cinematic-hero-music" : ""}`} aria-roledescription="carousel" aria-label="Featured titles">
     {slides.map((slide, slideIndex) => <div key={`${slide.source}:${slide.sourceId}`} className="hero-scene" data-active={slideIndex === activeIndex} aria-hidden="true">
       <Image src={(slide.backdropUrl ?? slide.posterUrl!).replace("/original/", "/w1280/")} alt="" fill loading={slideIndex === activeIndex ? "eager" : "lazy"} fetchPriority={slideIndex === activeIndex ? "high" : "auto"} sizes="100vw" className="hero-art" />
     </div>)}
     <div className="hero-shade" aria-hidden="true" />
     {item ? <div key={`${item.source}:${item.sourceId}`} className="hero-copy">
-      <p className="hero-eyebrow"><span/>{item.type === "MUSIC" ? "In the spotlight" : "Featured on Horizon"}</p>
       {item.type === "MUSIC" && item.posterUrl && <div className="hero-album"><Image src={item.posterUrl} alt={`${item.title} cover`} fill loading="eager" sizes="160px" className="object-cover"/></div>}
-      <h1>{item.title}</h1>
+      {item.logoUrl && failedLogo !== item.logoUrl ? <><h1 className="sr-only">{item.title}</h1><Image src={item.logoUrl} alt="" width={680} height={220} sizes="(max-width: 640px) 85vw, 40vw" className="hero-title-logo" onError={() => setFailedLogo(item.logoUrl ?? null)}/></> : <h1>{item.title}</h1>}
       <div className="hero-metadata">{item.voteAverage ? <span><Star size={14} fill="currentColor"/>{item.voteAverage.toFixed(1)}<span className="opacity-50">/{item.ratingScale ?? 10}</span></span> : null}<span>{item.displayDate}</span>{item.artistName && <span>{item.artistName}</span>}{item.tags?.[0] && <span>{item.tags[0]}</span>}</div>
       <p className="hero-description">{item.description === "Steam game listing." ? "Find your next favorite game. Explore trailers, screenshots, and everything you need to know." : item.description}</p>
       <div className="hero-actions">
@@ -68,7 +67,7 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
       <a href="#discover-collections" className="hero-scroll"><ArrowDown size={15}/><span>Scroll to explore</span></a>
       {slides.length > 1 && <div className="hero-pagination">
         <button type="button" aria-label="Previous featured title" onClick={() => setIndex((value) => (value + slides.length - 1) % slides.length)}><ChevronLeft size={17}/></button>
-        {slides.map((slide, slideIndex) => <button key={`${slide.source}:${slide.sourceId}`} type="button" className="hero-dot" aria-label={`Feature ${slide.title}`} aria-current={slideIndex === activeIndex ? "true" : undefined} onClick={() => setIndex(slideIndex)}><span style={{ "--slide-duration": "8500ms" } as CSSProperties}/></button>)}
+        {slides.map((slide, slideIndex) => <button key={`${slide.source}:${slide.sourceId}`} type="button" className="hero-dot" aria-label={`Feature ${slide.title}`} aria-current={slideIndex === activeIndex ? "true" : undefined} onClick={() => setIndex(slideIndex)}><span style={{ "--slide-duration": "15000ms" } as CSSProperties}/></button>)}
         <button type="button" aria-label="Next featured title" onClick={() => setIndex((value) => (value + 1) % slides.length)}><ChevronRight size={17}/></button>
         <button type="button" aria-label={paused ? "Resume featured slideshow" : "Pause featured slideshow"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? <Play size={13}/> : <Pause size={13}/>}</button>
       </div>}

@@ -4,6 +4,7 @@ import { getUpcomingAlbums, parseSteamCards, type RadarItem } from "@/lib/radar"
 import { musicChart, searchMusicCatalog } from "@/lib/music-catalog";
 import type { DiscoveryState } from "@/lib/discovery-options";
 import { isExplicitlyAiGenerated } from "@/lib/media-quality";
+import { watchService, watchServices } from "@/lib/watch-services";
 
 export type DiscoveryPage = { items: RadarItem[]; hasMore: boolean };
 export type DiscoveryProvider = { id: string; name: string; logo: string | null };
@@ -40,11 +41,12 @@ async function filmPage(state: DiscoveryState, page: number): Promise<DiscoveryP
     query.sort_by = state.sort === "rated" ? "vote_average.desc" : "popularity.desc";
     if (movie) { query.include_video = "false"; query.region = state.country; }
     else query.include_null_first_air_dates = "false";
+    if (!movie && !["10763", "10767"].includes(state.genre)) query.without_genres = "10763,10767";
     if (state.genre) query.with_genres = state.genre;
     if (state.year) query[movie ? "primary_release_year" : "first_air_date_year"] = state.year;
     if (state.sort === "rated") query["vote_count.gte"] = "200";
     if (state.provider) {
-      query.with_watch_providers = state.provider;
+      query.with_watch_providers = watchService(Number(state.provider))?.ids.join("|") ?? state.provider;
       query.watch_region = state.country;
     }
     if (state.sort === "upcoming") {
@@ -61,9 +63,11 @@ async function filmPage(state: DiscoveryState, page: number): Promise<DiscoveryP
       else query.timezone = "UTC";
     }
   }
+  // Weekly trends avoid lifetime-popularity lists dominated by daily talk shows.
+  if (!movie && !state.q && state.sort === "popular" && !state.genre && !state.year && !state.provider) path = "/trending/tv/week";
   const response = await tmdbFetch<TmdbList<TmdbMovie | TmdbShow>>(path, query);
   return {
-    items: (response.results ?? []).filter((entry) => entry.poster_path && !isExplicitlyAiGenerated("title" in entry ? entry.title : entry.name, entry.overview)).map((entry) => filmItem(entry, movie ? "MOVIE" : "SHOW")),
+    items: (response.results ?? []).filter((entry) => entry.poster_path && !(path === "/trending/tv/week" && entry.genre_ids?.some((id) => id === 10763 || id === 10767)) && !isExplicitlyAiGenerated("title" in entry ? entry.title : entry.name, entry.overview)).map((entry) => filmItem(entry, movie ? "MOVIE" : "SHOW")),
     hasMore: page < Math.min(500, response.total_pages ?? page),
   };
 }
@@ -139,5 +143,8 @@ export async function getDiscoveryPage(state: DiscoveryState, requestedPage = 1)
 
 export async function getDiscoveryProviders(type: "MOVIE" | "SHOW", country: string): Promise<DiscoveryProvider[]> {
   const result = await tmdbFetch<{ results?: { provider_id: number; provider_name: string; logo_path: string | null; display_priority?: number }[] }>(`/watch/providers/${type === "MOVIE" ? "movie" : "tv"}`, { watch_region: country });
-  return (result.results ?? []).sort((a, b) => (a.display_priority ?? 999) - (b.display_priority ?? 999)).map((entry) => ({ id: String(entry.provider_id), name: entry.provider_name, logo: tmdbImage(entry.logo_path, "w185") }));
+  return watchServices.flatMap((service) => {
+    const entry = service.ids.map((id) => result.results?.find((provider) => provider.provider_id === id)).find(Boolean);
+    return entry ? [{ id: String(entry.provider_id), name: service.name, logo: tmdbImage(entry.logo_path, "w185") }] : [];
+  });
 }

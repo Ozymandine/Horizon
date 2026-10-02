@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search, Shuffle, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Clock3, Search, Shuffle, Sparkles, X } from "lucide-react";
 import type { RadarItem, RadarType } from "@/lib/radar";
 import { discoverShelves } from "@/lib/discover-shelves";
 import { countries, defaultDiscovery, discoveryQuery, discoveryRows, discoveryState, mediaCategories, type DiscoveryState } from "@/lib/discovery-options";
@@ -14,6 +14,7 @@ import { CinematicHero, CatalogAtmosphere, detailLink } from "@/components/cinem
 import { MusicTrackList } from "@/components/music-track-list";
 import { SpotifySearchResults } from "@/components/spotify-music";
 import { useSpotifyConnected } from "@/lib/use-browser-preferences";
+import { ScrollRail } from "@/components/scroll-rail";
 
 type Provider = { id: string; name: string; logo: string | null };
 type RecentSearch = { q: string; type: RadarType };
@@ -40,9 +41,7 @@ function DiscoveryCard({ item, returnTo, landscape = false }: { item: RadarItem;
 }
 function CollectionRow({ state, row, returnTo, onViewAll, eager = false }: { state: DiscoveryState; row: ReturnType<typeof discoveryRows>[number]; returnTo: string; onViewAll: () => void; eager?: boolean }) {
   const [visible, setVisible] = useState(eager);
-  const [edges, setEdges] = useState({ left: false, right: true });
   const container = useRef<HTMLElement>(null);
-  const track = useRef<HTMLDivElement>(null);
   const key = collectionKey({ ...state, sort: row.sort, genre: row.genre, q: "", all: false });
   const result = useDiscoveryCollection(key, visible);
   const landscape = row.sort === "upcoming" && state.type !== "MUSIC";
@@ -52,18 +51,9 @@ function CollectionRow({ state, row, returnTo, onViewAll, eager = false }: { sta
     observer.observe(container.current);
     return () => observer.disconnect();
   }, [visible]);
-  useEffect(() => {
-    const node = track.current;
-    if (!node) return;
-    const update = () => setEdges({ left: node.scrollLeft > 4, right: node.scrollLeft + node.clientWidth < node.scrollWidth - 4 });
-    update(); const observer = new ResizeObserver(update); observer.observe(node);
-    node.addEventListener("scroll", update, { passive: true });
-    return () => { observer.disconnect(); node.removeEventListener("scroll", update); };
-  }, [result.data]);
-  function scroll(direction: number) { const node = track.current; if (node) node.scrollBy({ left: direction * node.clientWidth * .85, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); }
   return <section ref={container} className="discovery-row" aria-label={row.label}>
-    <div className="discovery-row-heading"><h3>{row.label}</h3><div className="row-heading-actions"><button type="button" className="row-view-all" onClick={onViewAll}>View all <ArrowRight size={14}/></button><div className="row-arrows"><button type="button" aria-label={`Scroll ${row.label} left`} disabled={!edges.left} onClick={() => scroll(-1)}><ChevronLeft size={19}/></button><button type="button" aria-label={`Scroll ${row.label} right`} disabled={!edges.right} onClick={() => scroll(1)}><ChevronRight size={19}/></button></div></div></div>
-    {result.error ? <div className="collection-message" role="status"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div> : !result.data ? <SkeletonCards landscape={landscape}/> : result.data.items.length ? <div ref={track} className="discovery-row-track">{result.data.items.slice(0, 20).map((item) => <DiscoveryCard key={`${item.source}:${item.sourceId}`} item={item} returnTo={returnTo} landscape={landscape}/>)}</div> : <p className="collection-message">{row.sort === "upcoming" ? "No announced releases are available for this collection yet." : "This collection has no titles right now."}</p>}
+    <div className="discovery-row-heading"><h3>{row.label}</h3><button type="button" className="row-view-all" onClick={onViewAll}>View all <ArrowRight size={14}/></button></div>
+    {result.error ? <div className="collection-message" role="status"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div> : !result.data ? <SkeletonCards landscape={landscape}/> : result.data.items.length ? <ScrollRail label={row.label} trackClassName="discovery-row-track">{result.data.items.slice(0, 20).map((item) => <DiscoveryCard key={`${item.source}:${item.sourceId}`} item={item} returnTo={returnTo} landscape={landscape}/>)}</ScrollRail> : <p className="collection-message">{row.sort === "upcoming" ? "No announced releases are available for this collection yet." : "This collection has no titles right now."}</p>}
   </section>;
 }
 function FilterSelect({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
@@ -97,9 +87,9 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const years = Array.from({ length: new Date().getFullYear() - 1900 + 4 }, (_, index) => { const value = String(new Date().getFullYear() + 3 - index); return { value, label: value }; });
   const sorts = state.type === "MUSIC" ? [{ value: "popular", label: "Popular albums" }, { value: "songs", label: "Popular songs" }, { value: "artists", label: "Artists" }, { value: "new", label: "Recent chart releases" }, { value: "upcoming", label: "Upcoming" }] : [{ value: "popular", label: "Popular" }, { value: "rated", label: "Top rated" }, ...(state.type === "GAME" ? [] : [{ value: "now", label: state.type === "MOVIE" ? "In theaters" : "On the air" }]), { value: "upcoming", label: "Upcoming" }];
   useEffect(() => {
-    if (state.type !== "GAME" || isExpanded) return;
+    if (state.type === "MUSIC" || isExpanded) return;
     const controller = new AbortController();
-    void fetch(`/api/discover/featured?${new URLSearchParams({ type: "GAME", country: state.country })}`, { signal: controller.signal }).then((response) => response.ok ? response.json() : null).then((data: { items: RadarItem[] } | null) => { if (data?.items.length && !controller.signal.aborted) setFeatured({ key, items: data.items }); }).catch(() => undefined);
+    void fetch(`/api/discover/featured?${new URLSearchParams({ type: state.type, country: state.country })}`, { signal: controller.signal }).then((response) => response.ok ? response.json() : null).then((data: { items: RadarItem[] } | null) => { if (data?.items.length && !controller.signal.aborted) setFeatured({ key, items: data.items }); }).catch(() => undefined);
     return () => controller.abort();
   }, [key, state.type, state.country, isExpanded]);
   useEffect(() => {
@@ -167,7 +157,6 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   return <main className={`discovery-page ${isExpanded ? "discovery-expanded" : ""}`} data-type={state.type}>
     {isExpanded ? <CatalogAtmosphere/> : <div className="discovery-artwork-haze" style={image ? { backgroundImage: `url("${image}")` } : undefined} aria-hidden="true"/>}
     <header className={`discovery-header ${scrolled || isExpanded ? "header-solid" : ""}`}>
-      <Link className="horizon-wordmark" href="/discover" aria-label="Horizon Discover"><span className="horizon-mark" aria-hidden="true"/><span>horizon<span className="wordmark-dot">.</span></span></Link>
       <nav className="discovery-categories" aria-label="Media categories">{mediaCategories.map((entry) => <button key={entry.value} type="button" aria-current={state.type === entry.value ? "page" : undefined} onClick={() => navigate({ ...defaultDiscovery, type: entry.value, country: state.country })}>{entry.label}</button>)}</nav>
       <form ref={searchRoot} role="search" className="discovery-search" onSubmit={(event) => { event.preventDefault(); rememberSearch(); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }}>
         <Search size={17} aria-hidden="true"/><input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} onFocus={() => { setRecent(readRecent()); setSearchOpen(true); }} onKeyDown={(event) => { if (event.key === "Escape") { setSearchOpen(false); searchInput.current?.blur(); } if (event.key === "ArrowDown" && searchOpen) { event.preventDefault(); searchRoot.current?.querySelector<HTMLButtonElement>(".recent-search-item")?.focus(); } }} aria-label={`Search ${category.label.toLowerCase()}`} aria-controls="recent-searches" placeholder={`Search ${category.label.toLowerCase()}`} autoComplete="off" maxLength={80}/>{search && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setSearch(""); navigate({ ...defaultDiscovery, type: state.type, country: state.country }); searchInput.current?.focus(); }}><X size={15}/></button>}
@@ -176,7 +165,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     </header>
     {!isExpanded && <CinematicHero key={state.type} items={heroItems} market={state.country} returnTo={returnTo} onFeature={setImage}/>}
     <div className="discovery-content" id="discover-collections">
-      <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><p className="section-eyebrow">A world worth exploring</p><h2>{category.label}</h2></div>}{isExpanded && <span className="result-count">{result.data?.items.length ?? 0} titles{result.data?.hasMore ? " & counting" : ""}</span>}</div>
+      <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><h2>{category.label}</h2></div>}{isExpanded && <span className="result-count">{result.data?.items.length ?? 0} titles{result.data?.hasMore ? " & counting" : ""}</span>}</div>
       <div className="discovery-filter-wrapper"><div className="discovery-filters" aria-label="Browse filters">
         <button type="button" className="random-title" title="Pick a random title" aria-label="Pick a random title" disabled={randomLoading || !result.data?.items.length} onClick={() => void randomTitle()}><Shuffle size={17} className={randomLoading ? "animate-pulse" : ""}/></button>
         <FilterSelect label="Genre" value={state.genre} disabled={!!state.q} onChange={(value) => chooseFilter("genre", value)} options={[{ value: "", label: "Genre" }, ...discoverShelves[state.type]]}/>
@@ -187,7 +176,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
         {isExpanded && !state.q && <button type="button" className="filter-reset" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}>Reset</button>}
       </div></div>
       {!!state.q && <p className="search-scope">Searching {category.label.toLowerCase()}. Browse filters are available when you clear the search.</p>}
-      {!isExpanded && (state.type === "MOVIE" || state.type === "SHOW") && providerList.length > 0 && <section className="provider-shelf" aria-label="Browse by provider"><div className="discovery-row-heading"><h3>Find it on your favorites</h3><span className="provider-region">{countries.find((country) => country.value === state.country)?.label}</span></div><div className="provider-track">{providerList.slice(0, 16).map((provider) => <button key={provider.id} type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country, provider: provider.id, all: true })}><div>{provider.logo ? <Image src={provider.logo} alt="" width={60} height={60} sizes="60px"/> : <span className="provider-letter">{provider.name.slice(0, 1)}</span>}</div><span>{provider.name}</span></button>)}</div></section>}
+      {!isExpanded && (state.type === "MOVIE" || state.type === "SHOW") && providerList.length > 0 && <section className="provider-shelf" aria-label="Browse by provider"><div className="discovery-row-heading"><h3>Browse by provider</h3><span className="provider-region">{countries.find((country) => country.value === state.country)?.label}</span></div><ScrollRail label="providers" trackClassName="provider-track">{providerList.map((provider) => <button key={provider.id} type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country, provider: provider.id, all: true })}><div>{provider.logo ? <Image src={provider.logo} alt="" width={60} height={60} sizes="60px"/> : <span className="provider-letter">{provider.name.slice(0, 1)}</span>}</div><span>{provider.name}</span></button>)}</ScrollRail></section>}
       {isExpanded ? <section className="expanded-results" aria-label={collectionTitle} aria-busy={result.loading}>
         {result.error && <div role="status" className="collection-message"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div>}
         {result.loading && !spotifySearch && <div className="discovery-grid" data-type={state.type}>{Array.from({ length: 12 }, (_, index) => <div key={index} className="discovery-skeleton"/>)}</div>}

@@ -17,6 +17,7 @@ export type RadarItem = {
   posterUrl: string | null;
   posterFallbackUrls?: string[];
   backdropUrl: string | null;
+  logoUrl?: string | null;
   description: string;
   externalUrl: string | null;
   tmdbId: number | null;

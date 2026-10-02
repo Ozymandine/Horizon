@@ -1,5 +1,6 @@
 import type { RadarType } from "@/lib/radar";
 import { discoverShelves } from "@/lib/discover-shelves";
+import { watchService } from "@/lib/watch-services";
 
 export const mediaCategories: { value: RadarType; label: string }[] = [
   { value: "MOVIE", label: "Movies" }, { value: "SHOW", label: "Shows" },
@@ -17,7 +18,7 @@ export function discoveryState(params: URLSearchParams): DiscoveryState {
     genre: discoverShelves[type].some((entry) => entry.value === params.get("genre")) ? params.get("genre")! : "",
     year: /^\d{4}$/.test(rawYear) && Number(rawYear) >= 1900 && Number(rawYear) <= new Date().getFullYear() + 10 ? rawYear : "",
     sort: sorts.includes(params.get("sort") ?? "") ? params.get("sort")! : "popular",
-    provider: /^\d{1,6}$/.test(params.get("provider") ?? "") ? params.get("provider")! : "",
+    provider: (type === "MOVIE" || type === "SHOW") && watchService(Number(params.get("provider"))) ? params.get("provider")! : "",
     country: countries.some((entry) => entry.value === params.get("country")) ? params.get("country")! : "US",
     q: query, all: params.get("all") === "1" || Boolean(query),
   };

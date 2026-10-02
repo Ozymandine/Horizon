@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 
 type VideoPlayerProps = {
   videoKey: string;
   title: string;
   fallbackUrl?: string;
+  posterUrl?: string | null;
 };
 
-export function VideoPlayer({ videoKey, title, fallbackUrl }: VideoPlayerProps) {
+export function VideoPlayer({ videoKey, title, fallbackUrl, posterUrl }: VideoPlayerProps) {
   const [playing, setPlaying] = useState(false);
   const safeKey = useMemo(() => /^[A-Za-z0-9_-]{6,32}$/.test(videoKey), [videoKey]);
 
@@ -36,11 +38,12 @@ export function VideoPlayer({ videoKey, title, fallbackUrl }: VideoPlayerProps) 
   }
 
   return (
-    <div className="glass flex aspect-video items-center justify-center rounded-2xl bg-[radial-gradient(ellipse_at_center,rgba(40,165,194,.2),transparent_60%)]">
+    <div className="glass relative flex aspect-video items-center justify-center overflow-hidden rounded-2xl bg-black/25">
+      {posterUrl && <Image src={posterUrl} alt="" fill sizes="(max-width: 1024px) 100vw, 850px" className="object-cover opacity-60"/>}
       <button
         type="button"
         onClick={() => setPlaying(true)}
-        className="group flex items-center gap-3 rounded-full border border-white/15 bg-black/30 px-5 py-3 text-sm font-medium text-white backdrop-blur transition hover:bg-white/10"
+        className="group relative flex items-center gap-3 rounded-full border border-white/15 bg-black/40 px-5 py-3 text-sm font-medium text-white backdrop-blur transition hover:bg-white/10"
       >
         <span className="grid size-9 place-items-center rounded-full bg-white text-slate-950 transition group-hover:scale-105">
           <span aria-hidden="true">▶</span>
