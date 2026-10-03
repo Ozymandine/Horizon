@@ -16,6 +16,7 @@ import { SpotifySearchResults } from "@/components/spotify-music";
 import { useSpotifyConnected } from "@/lib/use-browser-preferences";
 import { ScrollRail } from "@/components/scroll-rail";
 import { filmSearch } from "@/lib/film-search";
+import { ArtistArtwork } from "@/components/artist-artwork";
 
 type Provider = { id: string; name: string; logo: string | null };
 type RecentSearch = { q: string; type: RadarType };
@@ -35,8 +36,8 @@ function DiscoveryCard({ item, returnTo, landscape = false }: { item: RadarItem;
   const artist = item.source === "apple-artist";
   return <article className={`discovery-card ${landscape ? "card-landscape" : ""} ${item.type === "MUSIC" ? "card-music" : item.type === "GAME" ? "card-game" : ""} ${artist ? "card-artist" : ""}`}>
     <Link href={detailLink(item, returnTo)} prefetch={false} aria-label={`Open ${item.title}`}>
-      <div className="discovery-card-art"><MediaArtwork key={`${item.source}:${item.sourceId}`} title={item.title} type={item.type} imageUrl={landscape ? (item.backdropUrl ?? item.posterUrl)?.replace("/original/", "/w780/") : item.posterUrl} fallbackUrls={item.posterFallbackUrls}/><div className="discovery-card-shade"/>{landscape && <span className="coming-soon-badge">Coming soon</span>}<span className="card-open-icon"><ArrowRight size={17}/></span>{!artist && <div className="discovery-card-overlay"><strong>{item.title}</strong><span>{item.displayDate}{item.voteAverage ? ` · ★ ${item.voteAverage.toFixed(1)}` : ""}</span></div>}</div>
-      {(item.type === "GAME" || item.type === "MUSIC" || landscape) && <div className="discovery-card-caption"><strong>{item.title}</strong><span>{item.artistName ?? item.displayDate}</span></div>}
+      <div className="discovery-card-art">{artist ? <ArtistArtwork id={item.sourceId} name={item.title} country={new URL(returnTo, "https://horizon.invalid").searchParams.get("country") ?? "US"}/> : <MediaArtwork key={`${item.source}:${item.sourceId}`} title={item.title} type={item.type} imageUrl={landscape ? (item.backdropUrl ?? item.posterUrl)?.replace("/original/", "/w780/") : item.posterUrl} fallbackUrls={item.posterFallbackUrls}/>}<div className="discovery-card-shade"/>{landscape && <span className="coming-soon-badge">Coming soon</span>}<span className="card-open-icon"><ArrowRight size={17}/></span>{!artist && <div className="discovery-card-overlay"><strong>{item.title}</strong><span>{item.displayDate}{item.voteAverage ? ` · ★ ${item.voteAverage.toFixed(1)}` : ""}</span></div>}</div>
+      {(item.type === "GAME" || item.type === "MUSIC" || landscape) && <div className="discovery-card-caption"><strong>{item.title}</strong><span>{artist ? "Artist" : item.artistName ?? item.displayDate}</span></div>}
     </Link>
   </article>;
 }
@@ -83,7 +84,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const category = mediaCategories.find((entry) => entry.value === state.type)!;
   const rows = discoveryRows(state.type);
   const isExpanded = state.all || !!state.q;
-  const heroItems = featured?.key === key ? featured.items : result.data?.items ?? [];
+  const heroItems = featured?.key === key ? featured.items : (result.data?.items ?? []).filter((item) => state.type !== "GAME" || item.backdropUrl);
   const categorySearch = state.type === "MOVIE" || state.type === "SHOW" ? filmSearch(state.q, state.type) : null;
   const searchYear = state.year || categorySearch?.year;
   const collectionTitle = state.q ? categorySearch ? `${categorySearch.label} ${category.label.toLowerCase()}${searchYear ? ` · ${searchYear}` : ""}` : `Results for “${state.q}”` : state.genre ? discoverShelves[state.type].find((entry) => entry.value === state.genre)?.label ?? category.label : rows.find((row) => row.sort === state.sort && !row.genre)?.label ?? category.label;
@@ -156,7 +157,13 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     } catch { const items = result.data?.items ?? []; if (items.length) router.push(detailLink(items[Math.floor(Math.random() * items.length)], returnTo)); }
     finally { setRandomLoading(false); }
   }
-  const musicFallback = <>{result.data?.items.some((item) => item.source === "apple-song") && <section className="mb-9"><h3 className="mb-4 text-xl font-semibold">Songs</h3><MusicTrackList returnTo={returnTo} tracks={result.data.items.filter((item) => item.source === "apple-song").slice(0, 12).map((item) => ({ title: item.title, artist: item.artistName, artworkUrl: item.posterUrl, internalHref: item.href }))}/></section>}<div className="discovery-grid" data-type={state.type}>{result.data?.items.map((item) => <DiscoveryCard key={`${item.source}:${item.sourceId}`} item={item} returnTo={returnTo}/>)}</div></>;
+  const musicArtists = result.data?.items.filter((item) => item.source === "apple-artist") ?? [];
+  const musicAlbums = result.data?.items.filter((item) => item.source === "apple-album") ?? [];
+  const musicSongs = result.data?.items.filter((item) => item.source === "apple-song") ?? [];
+  const musicFallback = state.type === "MUSIC" && state.q ? <div className="space-y-9">
+    {[{ label: "Artists", items: musicArtists }, { label: "Albums & releases", items: musicAlbums }].filter((group) => group.items.length).map((group) => <section key={group.label}><h3 className="mb-4 text-xl font-semibold">{group.label}</h3><ScrollRail label={group.label} trackClassName="discovery-row-track">{group.items.map((item) => <DiscoveryCard key={`${item.source}:${item.sourceId}`} item={item} returnTo={returnTo}/>)}</ScrollRail></section>)}
+    {musicSongs.length > 0 && <section><h3 className="mb-4 text-xl font-semibold">Songs</h3><MusicTrackList returnTo={returnTo} tracks={musicSongs.map((item) => ({ title: item.title, artist: item.artistName, artworkUrl: item.posterUrl, internalHref: item.href }))}/></section>}
+  </div> : <div className="discovery-grid" data-type={state.type}>{result.data?.items.map((item) => <DiscoveryCard key={`${item.source}:${item.sourceId}`} item={item} returnTo={returnTo}/>)}</div>;
   return <main className={`discovery-page ${isExpanded ? "discovery-expanded" : ""}`} data-type={state.type}>
     {isExpanded ? <CatalogAtmosphere/> : <div className="discovery-artwork-haze" style={image ? { backgroundImage: `url("${image}")` } : undefined} aria-hidden="true"/>}
     <header className={`discovery-header ${scrolled || isExpanded ? "header-solid" : ""}`}>
@@ -168,7 +175,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     </header>
     {!isExpanded && <CinematicHero key={state.type} items={heroItems} market={state.country} returnTo={returnTo} onFeature={setImage}/>}
     <div className="discovery-content" id="discover-collections">
-      <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><h2>{category.label}</h2></div>}{isExpanded && <span className="result-count">{result.data?.items.length ?? 0} titles{result.data?.hasMore ? " & counting" : ""}</span>}</div>
+      <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><h2>{category.label}</h2></div>}</div>
       <div className="discovery-filter-wrapper"><div className="discovery-filters" aria-label="Browse filters">
         <button type="button" className="random-title" title="Pick a random title" aria-label="Pick a random title" disabled={randomLoading || !result.data?.items.length} onClick={() => void randomTitle()}><Shuffle size={17} className={randomLoading ? "animate-pulse" : ""}/></button>
         <FilterSelect label="Genre" value={state.genre} disabled={!!state.q && !categorySearch} onChange={(value) => chooseFilter("genre", value)} options={[{ value: "", label: "Genre" }, ...discoverShelves[state.type]]}/>
@@ -178,7 +185,6 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
         <FilterSelect label={state.type === "MUSIC" ? "Music market" : "Country"} value={state.country} onChange={(value) => chooseFilter("country", value)} options={countries}/>
         {isExpanded && !state.q && <button type="button" className="filter-reset" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}>Reset</button>}
       </div></div>
-      {!!state.q && <p className="search-scope">{categorySearch ? "Use the filters to refine this category." : `Searching ${category.label.toLowerCase()}. Browse filters are available when you clear the search.`}</p>}
       {!isExpanded && (state.type === "MOVIE" || state.type === "SHOW") && providerList.length > 0 && <section className="provider-shelf" aria-label="Browse by provider"><div className="discovery-row-heading"><h3>Browse by provider</h3></div><div className="provider-grid">{providerList.map((provider) => <button key={provider.id} type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country, provider: provider.id, all: true })}><div>{provider.logo ? <Image src={provider.logo} alt="" width={60} height={60} sizes="60px"/> : <span className="provider-letter">{provider.name.slice(0, 1)}</span>}</div><span>{provider.name}</span></button>)}</div></section>}
       {isExpanded ? <section className="expanded-results" aria-label={collectionTitle} aria-busy={result.loading}>
         {result.error && <div role="status" className="collection-message"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div>}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy, Disc3, ExternalLink, LogOut } from "lucide-react";
-import { beginSpotifyLogin, disconnectSpotify, notifySpotifyPreferencesChanged, SPOTIFY_CLIENT_KEY, SPOTIFY_PRODUCTION_REDIRECT_URI, spotifyAccessToken } from "@/lib/spotify-auth";
+import { beginSpotifyLogin, disconnectSpotify, notifySpotifyPreferencesChanged, SPOTIFY_CLIENT_KEY, spotifyAccessToken } from "@/lib/spotify-auth";
 import { useSpotifyClientId, useSpotifyConnected, useSpotifyRedirectUri } from "@/lib/use-browser-preferences";
 
 export function SpotifySettings({ returnTo = "/discover?type=MUSIC" }: { returnTo?: string }) {
@@ -48,11 +48,12 @@ export function SpotifySettings({ returnTo = "/discover?type=MUSIC" }: { returnT
     }
     setBusy(true);
     setMessage("Opening Spotify authorization…");
-    await beginSpotifyLogin(id, returnTo);
+    try { await beginSpotifyLogin(id, returnTo); }
+    catch (cause) { setMessage(cause instanceof Error ? cause.message : "Spotify connection couldn’t start. Please try again."); setBusy(false); }
   }
 
   async function copyRedirect() {
-    await navigator.clipboard.writeText(SPOTIFY_PRODUCTION_REDIRECT_URI);
+    await navigator.clipboard.writeText(redirectUri);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }
@@ -83,12 +84,12 @@ export function SpotifySettings({ returnTo = "/discover?type=MUSIC" }: { returnT
           {draft.trim() && <button type="button" disabled={busy} onClick={() => void saveClientId()} className="rounded-full border border-white/15 bg-white/[.08] px-4 py-2 text-sm text-white transition hover:bg-white/[.13] disabled:opacity-50">Save ID</button>}
         </div>
         <div className="mt-4 rounded-xl border border-white/10 bg-white/[.035] p-3">
-          <p className="text-xs font-medium text-white/75">Permanent production redirect URI</p>
+          <p className="text-xs font-medium text-white/75">Spotify redirect URI</p>
           <div className="mt-2 flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-white/65">{SPOTIFY_PRODUCTION_REDIRECT_URI}</code>
+            <code className="min-w-0 flex-1 break-all text-[11px] leading-5 text-white/65">{redirectUri}</code>
             <button type="button" onClick={() => void copyRedirect()} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 px-2.5 py-1.5 text-[11px] text-white/75 hover:bg-white/10"><span>{copied ? <Check size={13}/> : <Copy size={13}/>}</span>{copied ? "Copied" : "Copy"}</button>
           </div>
-          {redirectUri && redirectUri !== SPOTIFY_PRODUCTION_REDIRECT_URI && <p className="mt-2 text-[11px] leading-5 text-amber-100/70">This is a preview or local address. Connect from entertainment-horizon.vercel.app to use the permanent URI; previews use their own origin.</p>}
+          <p className="mt-2 text-[11px] leading-5 text-white/55">Add this exact URL to your Spotify app’s Redirect URIs and save it. Connection starts on this address.</p>
           <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-white/55 underline decoration-white/25 underline-offset-2 hover:text-white/80">Spotify Developer Dashboard <ExternalLink size={11}/></a>
         </div>
       </div>

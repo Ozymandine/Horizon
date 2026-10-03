@@ -5,7 +5,7 @@ import { musicChart, searchMusicCatalog } from "@/lib/music-catalog";
 import type { DiscoveryState } from "@/lib/discovery-options";
 import { isExplicitlyAiGenerated } from "@/lib/media-quality";
 import { watchService, watchServices } from "@/lib/watch-services";
-import { filmSearch } from "@/lib/film-search";
+import { resolveFilmSearch } from "@/lib/film-search-metadata";
 
 export type DiscoveryPage = { items: RadarItem[]; hasMore: boolean };
 export type DiscoveryProvider = { id: string; name: string; logo: string | null };
@@ -33,7 +33,7 @@ async function filmPage(state: DiscoveryState, page: number): Promise<DiscoveryP
   const kind = movie ? "movie" : "tv";
   const today = new Date().toISOString().slice(0, 10);
   const query: Record<string, string> = { page: String(page), include_adult: "false" };
-  const categorySearch = filmSearch(state.q, movie ? "MOVIE" : "SHOW");
+  const categorySearch = await resolveFilmSearch(state.q, movie ? "MOVIE" : "SHOW");
   let path = `/discover/${kind}`;
   if (state.q && !categorySearch) {
     path = `/search/${kind}`;
@@ -48,6 +48,7 @@ async function filmPage(state: DiscoveryState, page: number): Promise<DiscoveryP
     const genres = [...new Set([...(categorySearch?.genres ?? []), ...(state.genre ? [state.genre] : [])])];
     if (genres.length) query.with_genres = genres.join(",");
     if (categorySearch?.keyword) query.with_keywords = categorySearch.keyword;
+    if (categorySearch?.companies?.length) query.with_companies = categorySearch.companies.join("|");
     const year = state.year || categorySearch?.year;
     if (year) query[movie ? "primary_release_year" : "first_air_date_year"] = year;
     if (state.sort === "rated") query["vote_count.gte"] = "200";

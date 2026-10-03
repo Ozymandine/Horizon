@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUpRight, ChevronLeft, ChevronRight, Pause, Play, Star } from "lucide-react";
 import type { RadarItem } from "@/lib/radar";
 import { AddToMyListMenu } from "@/components/add-to-my-list-menu";
+import { MediaArtwork } from "@/components/media-artwork";
 import { spotifyConnected } from "@/lib/spotify-auth";
 
 function playbackRequestTime() { return Date.now(); }
@@ -49,7 +50,7 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
   }
   return <section ref={carousel} className={`cinematic-hero ${item?.type === "MUSIC" ? "cinematic-hero-music" : ""}`} aria-roledescription="carousel" aria-label="Featured titles">
     {slides.map((slide, slideIndex) => <div key={`${slide.source}:${slide.sourceId}`} className="hero-scene" data-active={slideIndex === activeIndex} aria-hidden="true">
-      <Image src={(slide.backdropUrl ?? slide.posterUrl!).replace(/\/w(?:780|1280)\//, "/original/")} alt="" fill quality={90} loading={slideIndex === activeIndex ? "eager" : "lazy"} fetchPriority={slideIndex === activeIndex ? "high" : "auto"} sizes="100vw" className="hero-art" />
+      <MediaArtwork key={slide.backdropUrl ?? slide.posterUrl} title={slide.title} type={slide.type} imageUrl={(slide.backdropUrl ?? slide.posterUrl!).replace(/\/w(?:780|1280)\//, "/original/")} fallbackUrls={[...(slide.posterUrl ? [slide.posterUrl] : []), ...(slide.posterFallbackUrls ?? [])]} quality={90} priority={slideIndex === activeIndex} unoptimized={false} sizes="100vw" className="hero-art" />
     </div>)}
     <div className="hero-shade" aria-hidden="true" />
     {item ? <div key={`${item.source}:${item.sourceId}`} className="hero-copy">
@@ -75,5 +76,5 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
   </section>;
 }
 export function CatalogAtmosphere() {
-  return <div className="catalog-atmosphere" aria-hidden="true"><svg className="catalog-silk" viewBox="0 0 1440 1000" preserveAspectRatio="xMidYMid slice"><defs><filter id="horizon-silk-blur"><feGaussianBlur stdDeviation="22"/></filter><linearGradient id="horizon-silk-color"><stop stopColor="#7bccb4"/><stop offset=".4" stopColor="#325576"/><stop offset=".7" stopColor="#6a82ab"/><stop offset="1" stopColor="#133035"/></linearGradient></defs><g fill="none" stroke="url(#horizon-silk-color)" filter="url(#horizon-silk-blur)"><path className="silk-ribbon silk-one" strokeWidth="100" d="M-200 750C50-200 600 180 460 650S1050 1050 1170 50S1630-150 1600 900"/><path className="silk-ribbon silk-two" strokeWidth="60" d="M-250 200C650 950 650-50 1200 450S1600 950 1700 20"/><path className="silk-ribbon silk-three" strokeWidth="25" d="M-100 900C600 300 400 1100 750 750S1350 50 1600 600"/></g></svg><div className="atmosphere-grain"/></div>;
+  return <div className="catalog-atmosphere" aria-hidden="true"><div className="ambient-flow ambient-flow-one"/><div className="ambient-flow ambient-flow-two"/><div className="ambient-flow ambient-flow-three"/></div>;
 }

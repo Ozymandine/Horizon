@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
   let refreshCookieFallback = "";
   if (input.grantType === "authorization_code") {
     if (!input.code || !input.verifier || !input.redirectUri) return jsonError("Spotify authorization details are incomplete.", 400);
-    const redirect = new URL(input.redirectUri);
+    let redirect: URL;
+    try { redirect = new URL(input.redirectUri); }
+    catch { return jsonError("Spotify callback URL is invalid.", 400); }
     if (redirect.origin !== new URL(request.url).origin || redirect.pathname !== "/spotify/callback") {
       return jsonError("Spotify callback URL does not match this site.", 400);
     }

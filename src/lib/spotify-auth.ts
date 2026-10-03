@@ -1,3 +1,5 @@
+import { safeReturnTo } from "@/lib/return-to";
+
 export const SPOTIFY_CLIENT_KEY = "horizon-spotify-client-id";
 export const SPOTIFY_PRODUCTION_REDIRECT_URI = "https://entertainment-horizon.vercel.app/spotify/callback";
 const TOKEN_KEY = "horizon-spotify-access-token";
@@ -31,10 +33,10 @@ export function subscribeSpotifyPreferences(onChange: () => void) {
 
 export function spotifyRedirectUri() {
   if (typeof window === "undefined") return SPOTIFY_PRODUCTION_REDIRECT_URI;
-  const origin = window.location.origin;
-  return origin === "https://entertainment-horizon.vercel.app"
-    ? SPOTIFY_PRODUCTION_REDIRECT_URI
-    : `${origin}/spotify/callback`;
+  const current = new URL(window.location.origin);
+  if (current.hostname === "localhost") current.hostname = "127.0.0.1";
+  if (/^entertainment-horizon(?:-[a-z0-9-]+)?\.vercel\.app$/.test(current.hostname)) return SPOTIFY_PRODUCTION_REDIRECT_URI;
+  return `${current.origin}/spotify/callback`;
 }
 
 export function spotifyClientId() {
@@ -60,21 +62,32 @@ function base64Url(value: ArrayBuffer) {
 }
 
 export async function beginSpotifyLogin(clientId: string, returnTo?: string) {
+  if (!/^[a-f\d]{32}$/i.test(clientId.trim())) throw new Error("Use the 32-character Client ID from your Spotify app, not its client secret.");
+  if (window.location.protocol !== "https:" && !["127.0.0.1", "[::1]", "localhost"].includes(window.location.hostname)) throw new Error("Spotify connection requires HTTPS or a local loopback address.");
+  const redirectUri = spotifyRedirectUri();
+  const callbackOrigin = new URL(redirectUri).origin;
+  if (callbackOrigin !== window.location.origin) {
+    // PKCE storage and the refresh cookie must share the callback's origin.
+    // Start there before creating a verifier, including from Vercel preview URLs.
+    const connectUrl = new URL("/spotify/connect", callbackOrigin);
+    connectUrl.search = new URLSearchParams({ clientId: clientId.trim(), returnTo: safeReturnTo(returnTo || "/discover?type=MUSIC") }).toString();
+    window.location.assign(connectUrl.toString());
+    return;
+  }
   const verifier = randomString(64);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const challenge = base64Url(digest);
   const state = randomString(32);
-  const redirectUri = spotifyRedirectUri();
   sessionStorage.setItem(VERIFIER_KEY, verifier);
   sessionStorage.setItem(STATE_KEY, state);
   sessionStorage.setItem(RETURN_KEY, returnTo || `${window.location.pathname}${window.location.search}`);
   sessionStorage.setItem(REDIRECT_KEY, redirectUri);
   const url = new URL("https://accounts.spotify.com/authorize");
   url.search = new URLSearchParams({
-    client_id: clientId,
+    client_id: clientId.trim(),
     response_type: "code",
     redirect_uri: redirectUri,
-    scope: "streaming user-read-playback-state user-modify-playback-state",
+    scope: "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state",
     state,
     code_challenge_method: "S256",
     code_challenge: challenge,
@@ -82,7 +95,16 @@ export async function beginSpotifyLogin(clientId: string, returnTo?: string) {
   window.location.assign(url);
 }
 
-export async function completeSpotifyLogin(code: string, returnedState: string) {
+let completingLogin: { key: string; promise: Promise<string> } | null = null;
+export function completeSpotifyLogin(code: string, returnedState: string) {
+  const key = `${returnedState}:${code}`;
+  if (completingLogin?.key === key) return completingLogin.promise;
+  const promise = exchangeSpotifyCode(code, returnedState);
+  completingLogin = { key, promise };
+  return promise;
+}
+
+async function exchangeSpotifyCode(code: string, returnedState: string) {
   const clientId = spotifyClientId();
   const verifier = sessionStorage.getItem(VERIFIER_KEY);
   const state = sessionStorage.getItem(STATE_KEY);
@@ -104,14 +126,21 @@ export async function completeSpotifyLogin(code: string, returnedState: string) 
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(STATE_KEY);
   sessionStorage.removeItem(REDIRECT_KEY);
-  return sessionStorage.getItem(RETURN_KEY) || "/discover?type=MUSIC";
+  return safeReturnTo(sessionStorage.getItem(RETURN_KEY) || "/discover?type=MUSIC");
 }
 
+let refreshingToken: Promise<string | null> | null = null;
 export async function spotifyAccessToken() {
   const token = sessionStorage.getItem(TOKEN_KEY);
   const expires = Number(sessionStorage.getItem(TOKEN_EXPIRY_KEY) ?? 0);
   const legacyRefreshToken = sessionStorage.getItem(LEGACY_REFRESH_KEY);
   if (token && expires > Date.now() + 60_000 && !legacyRefreshToken) return token;
+  if (refreshingToken) return refreshingToken;
+  refreshingToken = renewSpotifySession(legacyRefreshToken).finally(() => { refreshingToken = null; });
+  return refreshingToken;
+}
+
+async function renewSpotifySession(legacyRefreshToken: string | null) {
   const clientId = spotifyClientId();
   if (!clientId) return null;
   const response = await fetch("/api/spotify/session", {
@@ -161,5 +190,5 @@ export async function disconnectSpotify() {
 }
 
 export function spotifyReturnTo() {
-  return sessionStorage.getItem(RETURN_KEY) || "/discover?type=MUSIC";
+  return safeReturnTo(sessionStorage.getItem(RETURN_KEY) || "/discover?type=MUSIC");
 }

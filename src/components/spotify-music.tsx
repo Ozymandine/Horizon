@@ -8,6 +8,8 @@ import { MusicTrackList, type PlayableTrack } from "@/components/music-track-lis
 import { spotifyAccessToken, refreshSpotifyAccessToken } from "@/lib/spotify-auth";
 import { ScrollRail } from "@/components/scroll-rail";
 import { useSpotifyConnected } from "@/lib/use-browser-preferences";
+import { ArtistHero } from "@/components/artist-hero";
+import { ArtistArtwork } from "@/components/artist-artwork";
 
 type SpotifyImage = { url: string; width?: number; height?: number };
 type SpotifyArtist = { id: string; name: string; images?: SpotifyImage[]; external_urls?: { spotify?: string } };
@@ -44,7 +46,7 @@ function AlbumCard({ album, width = "w-[150px]" }: { album: SpotifyAlbum; width?
 
 function ArtistCard({ artist }: { artist: SpotifyArtist }) {
   return <Link href={`/music/artists/${artist.id}`} className="group w-[120px] shrink-0 snap-start text-center">
-    <div className="relative mx-auto grid aspect-square w-[104px] place-items-center overflow-hidden rounded-full border border-white/10 bg-black/25 shadow-lg">{artist.images?.[0]?.url ? <Image src={artist.images[0].url} alt={`${artist.name} profile`} fill sizes="104px" className="object-cover transition duration-300 group-hover:scale-[1.04]" /> : <Disc3 size={30} className="text-white/55"/>}</div>
+    <div className="relative mx-auto grid aspect-square w-[104px] place-items-center overflow-hidden rounded-full border border-white/10 bg-black/25 shadow-lg"><ArtistArtwork name={artist.name} imageUrl={artist.images?.[0]?.url} sizes="104px"/></div>
     <span className="mt-2 block truncate text-sm font-medium text-white">{artist.name}</span>
   </Link>;
 }
@@ -161,12 +163,15 @@ export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fa
         found = search.artists.items.find((item) => item.name.toLocaleLowerCase() === artistName.toLocaleLowerCase()) ?? search.artists.items[0];
       }
       if (!found) throw new Error("Spotify couldn’t find this artist.");
-      const [top, discography] = await Promise.all([
-        spotifyJson<{ tracks: SpotifyTrack[] }>(`/artists/${found.id}/top-tracks?market=US`),
+      const [songs, discography] = await Promise.all([
+        // Artist top-tracks was removed from Spotify Development Mode in 2026.
+        spotifyJson<{ tracks: Page<SpotifyTrack> }>(`/search?${new URLSearchParams({ q: `artist:${found.name}`, type: "track", limit: "10", market: "US" })}`),
         spotifyJson<Page<SpotifyAlbum>>(`/artists/${found.id}/albums?include_groups=album,single,compilation&limit=50&market=US`),
       ]);
       if (cancelled) return;
-      setCatalogState({ key: catalogKey, artist: found, tracks: top.tracks.slice(0, 9), albums: discography.items, nextAlbums: discography.next });
+      const artistId = found.id;
+      const tracks = songs.tracks.items.filter((track, index, list) => track.artists.some((artist) => artist.id === artistId) && list.findIndex((other) => other.name.toLocaleLowerCase() === track.name.toLocaleLowerCase()) === index);
+      setCatalogState({ key: catalogKey, artist: found, tracks, albums: discography.items, nextAlbums: discography.next });
       setMessageState((previous) => previous?.key === catalogKey ? null : previous);
     })().catch((cause: unknown) => {
       if (!cancelled) setMessageState({ key: catalogKey, message: cause instanceof Error ? cause.message : "Spotify artist catalog couldn’t load." });
@@ -202,14 +207,11 @@ export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fa
   ].filter((group) => group.items.length);
 
   return <div className="space-y-9">
-    {artist && <header className="glass flex flex-col gap-5 rounded-3xl p-5 sm:flex-row sm:items-end sm:p-8">
-      <div className="relative size-36 shrink-0 overflow-hidden rounded-full border border-white/10 bg-black/25 sm:size-48">{artist.images?.[0]?.url ? <Image src={artist.images[0].url} alt={`${artist.name} profile`} fill sizes="(max-width: 640px) 144px, 192px" className="object-cover"/> : <div className="grid size-full place-items-center text-white/50"><Disc3 size={42}/></div>}</div>
-      <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.2em] text-white/55">Artist</p><h1 className="mt-2 truncate text-3xl font-semibold text-white sm:text-5xl">{artist.name}</h1><p className="mt-2 text-sm text-white/65">Top songs and official releases</p></div>
-    </header>}
-    <div className="flex items-center justify-between gap-3"><p className="text-xs text-white/50">Top songs and official releases from Spotify.</p><SpotifyCredit/></div>
+    {artist && <ArtistHero name={artist.name} imageUrl={artist.images?.[0]?.url} tracks={tracks.map(toTrack)} returnTo={returnTo}/>}
+    <div className="flex justify-end"><SpotifyCredit/></div>
     {message && <p role="status" className="text-xs text-amber-100/80">{message}</p>}
-    <section><div className="mb-3 flex items-center justify-between"><div><h2 className="text-2xl font-semibold text-white">Top songs</h2><p className="mt-1 text-sm text-white/60">Top 9 on Spotify.</p></div></div><MusicTrackList tracks={tracks.map(toTrack)} returnTo={returnTo}/></section>
-    <section className="space-y-7"><div><h2 className="text-2xl font-semibold text-white">Discography</h2><p className="mt-1 text-sm text-white/60">Official Spotify release listings.</p></div>
+    <section><h2 className="mb-4 text-2xl font-semibold text-white">Songs</h2><MusicTrackList tracks={tracks.map(toTrack)} returnTo={returnTo}/></section>
+    <section className="space-y-7"><h2 className="text-2xl font-semibold text-white">Discography</h2>
       {groups.map((group) => <section key={group.label}><h3 className="mb-3 text-lg font-medium text-white">{group.label}</h3><ScrollRail label={group.label}>{group.items.map((album) => <AlbumCard key={album.id} album={album} width="w-[158px] sm:w-[174px]"/>)}</ScrollRail></section>)}
       {!groups.length && <p className="glass rounded-2xl p-5 text-sm text-white/70">No Spotify releases are listed for this artist.</p>}
       {nextAlbums && <button type="button" disabled={loading} onClick={() => void loadMoreAlbums()} className="rounded-full border border-white/15 bg-white/[.07] px-4 py-2 text-sm text-white/80 hover:bg-white/[.12] disabled:opacity-50">{loading ? "Loading…" : "Load more releases"}</button>}

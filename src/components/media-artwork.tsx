@@ -13,20 +13,23 @@ const artworkTone: Record<ArtworkType, { label: string; symbol: string; gradient
   EVENT: { label: "EVENT", symbol: "✦", gradient: "from-rose-950 via-slate-900 to-black" },
 };
 
-export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], className = "", priority = false }: {
+export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], className = "", priority = false, sizes = "(max-width: 640px) 50vw, 205px", quality = 75, unoptimized = true }: {
   title: string;
   type: ArtworkType;
   imageUrl?: string | null;
   fallbackUrls?: string[];
   className?: string;
   priority?: boolean;
+  sizes?: string;
+  quality?: number;
+  unoptimized?: boolean;
 }) {
-  const urls = [imageUrl, ...fallbackUrls].filter((url): url is string => Boolean(url));
+  const urls = [...new Set([imageUrl, ...fallbackUrls].filter((url): url is string => Boolean(url)))];
   const [imageIndex, setImageIndex] = useState(0);
   const tone = artworkTone[type];
 
   if (urls[imageIndex]) {
-    return <Image key={urls[imageIndex]} src={urls[imageIndex]} alt="" aria-hidden="true" fill priority={priority} unoptimized sizes="(max-width: 640px) 50vw, 205px" onLoad={(event) => {
+    return <Image key={urls[imageIndex]} src={urls[imageIndex]} alt="" aria-hidden="true" fill loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} unoptimized={unoptimized} sizes={sizes} quality={quality} onLoad={(event) => {
       const image = event.currentTarget;
       const minWidth = type === "GAME" ? 180 : 240;
       const minHeight = type === "GAME" ? 70 : 240;
