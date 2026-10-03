@@ -13,7 +13,7 @@ export function discoveryState(params: URLSearchParams): DiscoveryState {
   const type = mediaCategories.find((entry) => entry.value === params.get("type"))?.value ?? "MOVIE";
   const sorts = type === "MUSIC" ? ["popular", "songs", "artists", "new", "upcoming"] : type === "GAME" ? ["popular", "rated", "upcoming"] : ["popular", "rated", "now", "upcoming"];
   const rawYear = params.get("year") ?? "";
-  const query = (params.get("q") ?? "").trim().slice(0, 80);
+  const query = (params.get("q") ?? "").normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 80);
   return { ...defaultDiscovery, type,
     genre: discoverShelves[type].some((entry) => entry.value === params.get("genre")) ? params.get("genre")! : "",
     year: /^\d{4}$/.test(rawYear) && Number(rawYear) >= 1900 && Number(rawYear) <= new Date().getFullYear() + 10 ? rawYear : "",

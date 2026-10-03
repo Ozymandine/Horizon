@@ -13,7 +13,6 @@ export const watchServices = [
   { name: "Starz", ids: [43] },
   { name: "AMC+", ids: [526] },
   { name: "MGM Plus", ids: [34] },
-  { name: "YouTube Premium", ids: [188] },
   { name: "YouTube", ids: [192, 235] },
   { name: "Tubi TV", ids: [73] },
   { name: "Pluto TV", ids: [300] },

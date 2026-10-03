@@ -5,6 +5,7 @@ import { musicChart, searchMusicCatalog } from "@/lib/music-catalog";
 import type { DiscoveryState } from "@/lib/discovery-options";
 import { isExplicitlyAiGenerated } from "@/lib/media-quality";
 import { watchService, watchServices } from "@/lib/watch-services";
+import { filmSearch } from "@/lib/film-search";
 
 export type DiscoveryPage = { items: RadarItem[]; hasMore: boolean };
 export type DiscoveryProvider = { id: string; name: string; logo: string | null };
@@ -32,18 +33,23 @@ async function filmPage(state: DiscoveryState, page: number): Promise<DiscoveryP
   const kind = movie ? "movie" : "tv";
   const today = new Date().toISOString().slice(0, 10);
   const query: Record<string, string> = { page: String(page), include_adult: "false" };
+  const categorySearch = filmSearch(state.q, movie ? "MOVIE" : "SHOW");
   let path = `/discover/${kind}`;
-  if (state.q) {
+  if (state.q && !categorySearch) {
     path = `/search/${kind}`;
     query.query = state.q;
     if (movie) query.region = state.country;
+    if (state.year) query[movie ? "primary_release_year" : "first_air_date_year"] = state.year;
   } else {
     query.sort_by = state.sort === "rated" ? "vote_average.desc" : "popularity.desc";
     if (movie) { query.include_video = "false"; query.region = state.country; }
     else query.include_null_first_air_dates = "false";
     if (!movie && !["10763", "10767"].includes(state.genre)) query.without_genres = "10763,10767";
-    if (state.genre) query.with_genres = state.genre;
-    if (state.year) query[movie ? "primary_release_year" : "first_air_date_year"] = state.year;
+    const genres = [...new Set([...(categorySearch?.genres ?? []), ...(state.genre ? [state.genre] : [])])];
+    if (genres.length) query.with_genres = genres.join(",");
+    if (categorySearch?.keyword) query.with_keywords = categorySearch.keyword;
+    const year = state.year || categorySearch?.year;
+    if (year) query[movie ? "primary_release_year" : "first_air_date_year"] = year;
     if (state.sort === "rated") query["vote_count.gte"] = "200";
     if (state.provider) {
       query.with_watch_providers = watchService(Number(state.provider))?.ids.join("|") ?? state.provider;

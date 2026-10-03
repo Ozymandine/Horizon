@@ -15,6 +15,7 @@ import { MusicTrackList } from "@/components/music-track-list";
 import { SpotifySearchResults } from "@/components/spotify-music";
 import { useSpotifyConnected } from "@/lib/use-browser-preferences";
 import { ScrollRail } from "@/components/scroll-rail";
+import { filmSearch } from "@/lib/film-search";
 
 type Provider = { id: string; name: string; logo: string | null };
 type RecentSearch = { q: string; type: RadarType };
@@ -83,7 +84,9 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const rows = discoveryRows(state.type);
   const isExpanded = state.all || !!state.q;
   const heroItems = featured?.key === key ? featured.items : result.data?.items ?? [];
-  const collectionTitle = state.q ? `Results for “${state.q}”` : state.genre ? discoverShelves[state.type].find((entry) => entry.value === state.genre)?.label ?? category.label : rows.find((row) => row.sort === state.sort && !row.genre)?.label ?? category.label;
+  const categorySearch = state.type === "MOVIE" || state.type === "SHOW" ? filmSearch(state.q, state.type) : null;
+  const searchYear = state.year || categorySearch?.year;
+  const collectionTitle = state.q ? categorySearch ? `${categorySearch.label} ${category.label.toLowerCase()}${searchYear ? ` · ${searchYear}` : ""}` : `Results for “${state.q}”` : state.genre ? discoverShelves[state.type].find((entry) => entry.value === state.genre)?.label ?? category.label : rows.find((row) => row.sort === state.sort && !row.genre)?.label ?? category.label;
   const years = Array.from({ length: new Date().getFullYear() - 1900 + 4 }, (_, index) => { const value = String(new Date().getFullYear() + 3 - index); return { value, label: value }; });
   const sorts = state.type === "MUSIC" ? [{ value: "popular", label: "Popular albums" }, { value: "songs", label: "Popular songs" }, { value: "artists", label: "Artists" }, { value: "new", label: "Recent chart releases" }, { value: "upcoming", label: "Upcoming" }] : [{ value: "popular", label: "Popular" }, { value: "rated", label: "Top rated" }, ...(state.type === "GAME" ? [] : [{ value: "now", label: state.type === "MOVIE" ? "In theaters" : "On the air" }]), { value: "upcoming", label: "Upcoming" }];
   useEffect(() => {
@@ -168,15 +171,15 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
       <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><h2>{category.label}</h2></div>}{isExpanded && <span className="result-count">{result.data?.items.length ?? 0} titles{result.data?.hasMore ? " & counting" : ""}</span>}</div>
       <div className="discovery-filter-wrapper"><div className="discovery-filters" aria-label="Browse filters">
         <button type="button" className="random-title" title="Pick a random title" aria-label="Pick a random title" disabled={randomLoading || !result.data?.items.length} onClick={() => void randomTitle()}><Shuffle size={17} className={randomLoading ? "animate-pulse" : ""}/></button>
-        <FilterSelect label="Genre" value={state.genre} disabled={!!state.q} onChange={(value) => chooseFilter("genre", value)} options={[{ value: "", label: "Genre" }, ...discoverShelves[state.type]]}/>
-        <FilterSelect label={state.type === "MUSIC" ? "Chart release year" : "Year"} value={state.year} disabled={!!state.q} onChange={(value) => chooseFilter("year", value)} options={[{ value: "", label: state.type === "MUSIC" ? "Release year" : "Year" }, ...years]}/>
-        <FilterSelect label="Sort" value={sorts.some((entry) => entry.value === state.sort) ? state.sort : "popular"} disabled={!!state.q} onChange={(value) => chooseFilter("sort", value)} options={sorts}/>
-        {(state.type === "MOVIE" || state.type === "SHOW") && <FilterSelect label="Provider" value={state.provider} disabled={!!state.q} onChange={(value) => chooseFilter("provider", value)} options={[{ value: "", label: "Provider" }, ...providerList.map((provider) => ({ value: provider.id, label: provider.name }))]}/>}
+        <FilterSelect label="Genre" value={state.genre} disabled={!!state.q && !categorySearch} onChange={(value) => chooseFilter("genre", value)} options={[{ value: "", label: "Genre" }, ...discoverShelves[state.type]]}/>
+        <FilterSelect label={state.type === "MUSIC" ? "Chart release year" : "Year"} value={state.year} disabled={!!state.q && !categorySearch} onChange={(value) => chooseFilter("year", value)} options={[{ value: "", label: state.type === "MUSIC" ? "Release year" : "Year" }, ...years]}/>
+        <FilterSelect label="Sort" value={sorts.some((entry) => entry.value === state.sort) ? state.sort : "popular"} disabled={!!state.q && !categorySearch} onChange={(value) => chooseFilter("sort", value)} options={sorts}/>
+        {(state.type === "MOVIE" || state.type === "SHOW") && <FilterSelect label="Provider" value={state.provider} disabled={!!state.q && !categorySearch} onChange={(value) => chooseFilter("provider", value)} options={[{ value: "", label: "Provider" }, ...providerList.map((provider) => ({ value: provider.id, label: provider.name }))]}/>}
         <FilterSelect label={state.type === "MUSIC" ? "Music market" : "Country"} value={state.country} onChange={(value) => chooseFilter("country", value)} options={countries}/>
         {isExpanded && !state.q && <button type="button" className="filter-reset" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}>Reset</button>}
       </div></div>
-      {!!state.q && <p className="search-scope">Searching {category.label.toLowerCase()}. Browse filters are available when you clear the search.</p>}
-      {!isExpanded && (state.type === "MOVIE" || state.type === "SHOW") && providerList.length > 0 && <section className="provider-shelf" aria-label="Browse by provider"><div className="discovery-row-heading"><h3>Browse by provider</h3><span className="provider-region">{countries.find((country) => country.value === state.country)?.label}</span></div><ScrollRail label="providers" trackClassName="provider-track">{providerList.map((provider) => <button key={provider.id} type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country, provider: provider.id, all: true })}><div>{provider.logo ? <Image src={provider.logo} alt="" width={60} height={60} sizes="60px"/> : <span className="provider-letter">{provider.name.slice(0, 1)}</span>}</div><span>{provider.name}</span></button>)}</ScrollRail></section>}
+      {!!state.q && <p className="search-scope">{categorySearch ? "Use the filters to refine this category." : `Searching ${category.label.toLowerCase()}. Browse filters are available when you clear the search.`}</p>}
+      {!isExpanded && (state.type === "MOVIE" || state.type === "SHOW") && providerList.length > 0 && <section className="provider-shelf" aria-label="Browse by provider"><div className="discovery-row-heading"><h3>Browse by provider</h3></div><div className="provider-grid">{providerList.map((provider) => <button key={provider.id} type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country, provider: provider.id, all: true })}><div>{provider.logo ? <Image src={provider.logo} alt="" width={60} height={60} sizes="60px"/> : <span className="provider-letter">{provider.name.slice(0, 1)}</span>}</div><span>{provider.name}</span></button>)}</div></section>}
       {isExpanded ? <section className="expanded-results" aria-label={collectionTitle} aria-busy={result.loading}>
         {result.error && <div role="status" className="collection-message"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div>}
         {result.loading && !spotifySearch && <div className="discovery-grid" data-type={state.type}>{Array.from({ length: 12 }, (_, index) => <div key={index} className="discovery-skeleton"/>)}</div>}
@@ -184,7 +187,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
         {result.data && !result.data.items.length && !spotifySearch && <div className="discovery-empty"><Sparkles size={26}/><h3>No matches this time</h3><p>Try a different search or loosen a filter to explore more titles.</p><button type="button" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}>Explore {category.label.toLowerCase()}</button></div>}
         {result.data?.hasMore && !spotifySearch && <div className="load-more-wrap"><button type="button" disabled={result.more} onClick={() => void result.loadMore()}>{result.more ? "Loading more…" : "Explore more"}<ArrowDownIcon/></button></div>}
       </section> : <div className="discovery-collections">{result.error && <div role="status" className="collection-message"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div>}{rows.map((row, index) => <CollectionRow key={`${state.type}:${state.country}:${row.value}`} state={state} row={row} eager={index < 2} returnTo={returnTo} onViewAll={() => navigate({ ...state, genre: row.genre, sort: row.sort, all: true })}/>)}</div>}
-      <footer className="discovery-footer"><span className="horizon-wordmark">horizon<span className="wordmark-dot">.</span></span><p>One place for everything you love.</p><span>{state.type === "MUSIC" ? "Catalog data: Apple / MusicBrainz · Playback: Spotify" : state.type === "GAME" ? "Game information from Steam and RAWG" : "Film and TV information from TMDB · Availability by JustWatch"}</span></footer>
+
     </div>
   </main>;
 }

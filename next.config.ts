@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   images: {
+    qualities: [75, 90],
     // Local dev often runs behind a network proxy that cannot fetch remote artwork.
     // Let the browser fetch images directly there; keep production optimization enabled.
     unoptimized: process.env.NODE_ENV !== "production",

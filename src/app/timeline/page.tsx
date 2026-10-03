@@ -54,9 +54,8 @@ async function getTrackedTimeline(): Promise<TimelineItem[]> {
 export default async function TimelinePage() {
   const items = await getTrackedTimeline();
   return (
-    <main className="mx-auto min-h-screen max-w-[1500px] px-5 pb-32 pt-10 sm:px-8 sm:pt-14">
-      <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">The timeline</h1>
-      <p className="mb-9 mt-3 max-w-xl text-sm leading-6 text-slate-400">Your saved releases, one month at a time.</p>
+    <main className="timeline-page">
+      <h1>The timeline</h1>
       <TimelineSpine items={items} />
     </main>
   );

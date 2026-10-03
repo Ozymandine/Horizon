@@ -55,7 +55,7 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
   return <main className="film-detail-page">
     {backdrop && <div className="film-detail-ambient" style={{ backgroundImage: `url("${tmdbImage(details.backdrop_path, "w780")}")` }} aria-hidden="true"/>}
     <section className="film-detail-hero">
-      {backdrop && <Image src={backdrop} alt="" fill loading="eager" fetchPriority="high" sizes="100vw" className="film-detail-backdrop"/>}
+      {backdrop && <Image src={backdrop} alt="" fill quality={90} loading="eager" fetchPriority="high" sizes="100vw" className="film-detail-backdrop"/>}
       <div className="film-detail-shade" aria-hidden="true"/>
       <div className="film-detail-intro">
         <Link href={backTo} className="film-detail-back">← {returnLabel(backTo)}</Link>
@@ -80,7 +80,7 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
         {artwork.length > 0 && <section><h2>Artwork & stills</h2><FilmArtwork title={title} images={artwork}/></section>}
         {related.length > 0 && <section><h2>More like this</h2><ScrollRail label="related titles" trackClassName="film-related-track">{related.map((entry) => <Link key={entry.id} href={`/${kind}/${entry.id}?returnTo=${encodeURIComponent(`/${kind}/${details.id}?returnTo=${encodeURIComponent(backTo)}`)}`} className="film-related-card" prefetch={false}><div><Image src={tmdbImage(entry.poster_path, "w342")!} alt="" fill sizes="145px" className="object-cover"/></div><h3>{"title" in entry ? entry.title : entry.name}</h3><p>{entry.vote_average > 0 ? `★ ${entry.vote_average.toFixed(1)}` : ""}</p></Link>)}</ScrollRail></section>}
       </div>
-      <aside className="film-aside"><WatchOptions options={watchOptions}/><section className="film-facts glass"><h2>{movie ? "Movie" : "Series"} information</h2><dl>{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>{details.homepage && /^https?:\/\//.test(details.homepage) && <a href={details.homepage} target="_blank" rel="noreferrer">Official website ↗</a>}<p className="film-rating-note">TMDB rating based on {(details.vote_count ?? 0).toLocaleString()} votes.</p></section>{show && <NewsPanel title={title}/>}<p className="film-attribution">Details and artwork from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</p></aside>
+      <aside className="film-aside"><WatchOptions options={watchOptions}/><section className="film-facts glass"><h2>{movie ? "Movie" : "Series"} information</h2><dl>{facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl>{details.homepage && /^https?:\/\//.test(details.homepage) && <a href={details.homepage} target="_blank" rel="noreferrer">Official website ↗</a>}<p className="film-rating-note">TMDB rating based on {(details.vote_count ?? 0).toLocaleString()} votes.</p></section>{show && <NewsPanel title={title}/>}</aside>
     </div>
   </main>;
 }

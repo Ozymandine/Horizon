@@ -49,7 +49,7 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
   }
   return <section ref={carousel} className={`cinematic-hero ${item?.type === "MUSIC" ? "cinematic-hero-music" : ""}`} aria-roledescription="carousel" aria-label="Featured titles">
     {slides.map((slide, slideIndex) => <div key={`${slide.source}:${slide.sourceId}`} className="hero-scene" data-active={slideIndex === activeIndex} aria-hidden="true">
-      <Image src={(slide.backdropUrl ?? slide.posterUrl!).replace("/original/", "/w1280/")} alt="" fill loading={slideIndex === activeIndex ? "eager" : "lazy"} fetchPriority={slideIndex === activeIndex ? "high" : "auto"} sizes="100vw" className="hero-art" />
+      <Image src={(slide.backdropUrl ?? slide.posterUrl!).replace(/\/w(?:780|1280)\//, "/original/")} alt="" fill quality={90} loading={slideIndex === activeIndex ? "eager" : "lazy"} fetchPriority={slideIndex === activeIndex ? "high" : "auto"} sizes="100vw" className="hero-art" />
     </div>)}
     <div className="hero-shade" aria-hidden="true" />
     {item ? <div key={`${item.source}:${item.sourceId}`} className="hero-copy">

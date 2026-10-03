@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { Clock3 } from "lucide-react";
 import { MediaArtwork } from "@/components/media-artwork";
@@ -63,7 +63,6 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
   const selectedMonthIndex = months.length ? months[Math.round(safePosition)] : todayIndex;
   const currentMonth = dateFromMonthIndex(selectedMonthIndex);
   const caption = monthLabel(currentMonth);
-  const totalMonths = Math.max(1, months.length);
 
   function moveTo(next: number) {
     setPosition(Math.max(0, Math.min(Math.max(0, months.length - 1), next)));
@@ -72,16 +71,16 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
   function renderTimelineMonth(index: number) {
     const entries = scheduledByMonth.get(index) ?? [];
     const month = dateFromMonthIndex(index);
-    return <section key={index} aria-label={`${monthLabel(month)} timeline`} style={{ flex: `0 0 ${100 / totalMonths}%`, minWidth: 0 }} className="relative h-[340px] px-5 pb-8 pt-6 sm:px-8">
-      <div className="absolute inset-x-7 bottom-5 h-px bg-white/25 sm:inset-x-12" />
-      <ScrollRail label={`${monthLabel(month)} releases`} trackClassName="timeline-card-track">
-        {entries.map((item) => <div key={item.id} className="relative z-10 flex w-[142px] shrink-0 flex-col items-center justify-end">
-          <Link href={itemHref(item)} aria-label={`${item.title}, ${dayLabel(item)}`} title={item.title} className="relative block h-[198px] w-[132px] overflow-hidden rounded-xl border border-white/10 bg-slate-950 shadow-lg shadow-black/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80">
+    return <section key={index} aria-label={`${monthLabel(month)} timeline`} className="monthly-timeline">
+      <div className="timeline-axis" aria-hidden="true"/>
+      <ScrollRail label={`${monthLabel(month)} releases`} className="timeline-release-rail" trackClassName="timeline-card-track">
+        {entries.map((item) => <div key={item.id} className="timeline-release">
+          <Link href={itemHref(item)} aria-label={`${item.title}, ${dayLabel(item)}`} title={item.title} className="timeline-release-art">
             <MediaArtwork title={item.title} type={item.type} imageUrl={item.posterUrl} />
           </Link>
-          <p className="mt-2 w-full truncate text-center text-xs font-semibold text-white" title={item.title}>{item.title}</p>
-          <p className="relative mt-1 pb-6 text-center text-xs font-medium text-white/80 after:absolute after:left-1/2 after:top-4 after:h-9 after:w-[2px] after:-translate-x-1/2 after:bg-cyan-200/80">{dayLabel(item)}</p>
-          <span aria-hidden="true" className="absolute -bottom-[6px] z-10 size-3 rounded-full border-2 border-slate-950 bg-cyan-200 shadow-[0_0_18px_rgba(103,232,249,.6)]" />
+          <p className="timeline-release-title" title={item.title}>{item.title}</p>
+          <p className="timeline-release-date">{dayLabel(item)}</p>
+          <span aria-hidden="true" className="timeline-release-dot"/>
         </div>)}
       </ScrollRail>
     </section>;
@@ -96,7 +95,8 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
     byDay.set(day, [...(byDay.get(day) ?? []), item]);
   }
 
-  return <div className="space-y-6">
+  const calendarCells = Math.ceil((startOffset + monthDays) / 7) * 7;
+  return <div className="timeline-layout">
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => moveTo(Math.round(safePosition) - 1)} disabled={!months.length || safePosition <= 0} aria-label="Previous month" className="glass grid size-10 place-items-center rounded-full text-lg text-white transition hover:bg-white/10 disabled:opacity-30">‹</button>
@@ -113,23 +113,21 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
       <div><span className="mx-auto grid size-12 place-items-center rounded-full border border-white/15 bg-white/[.06] text-cyan-100"><Clock3 size={20} /></span><h3 className="mt-4 text-lg font-medium text-white">Your timeline is ready</h3><p className="mt-2 max-w-md text-sm leading-6 text-white/75">Add a release with a confirmed date to see it here. Your saved items without a date will appear below.</p></div>
     </div> : mode === "timeline" ? <>
       <div className="glass overflow-hidden rounded-[1.75rem]" aria-label="Monthly release timeline">
-        <div className="flex transition-transform duration-500 ease-[cubic-bezier(.22,1,.36,1)]" style={{ width: `${totalMonths * 100}%`, transform: `translate3d(-${safePosition / totalMonths * 100}%, 0, 0)` }}>
-          {months.map(renderTimelineMonth)}
-        </div>
+        {renderTimelineMonth(selectedMonthIndex)}
       </div>
-      {months.length > 1 && <p className="text-center text-xs text-white/60">Month {Math.round(safePosition) + 1} of {months.length} · Use the month arrows to browse releases</p>}
-    </> : <div className="glass rounded-[1.75rem] p-4 sm:p-7">
-      <div className="mb-3 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-[.15em] text-white/75 sm:text-xs">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day} className="py-2">{day}</span>)}</div>
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-        {Array.from({ length: startOffset }, (_, index) => <div key={`blank-${index}`} aria-hidden="true" className="min-h-24 rounded-xl sm:min-h-32" />)}
+    </> : <div className="timeline-calendar glass">
+      <div className="calendar-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div>
+      <div className="calendar-days" style={{ "--calendar-rows": calendarCells / 7 } as CSSProperties}>
+        {Array.from({ length: startOffset }, (_, index) => <div key={`blank-${index}`} aria-hidden="true" />)}
         {Array.from({ length: monthDays }, (_, index) => {
           const day = index + 1;
           const dayItems = byDay.get(day) ?? [];
-          return <div key={day} className={`min-h-24 rounded-xl border p-1.5 sm:min-h-32 sm:p-2 ${dayItems.length ? "border-white/20 bg-white/[.08]" : "border-white/[.08] bg-black/[.1]"}`}>
+          return <div key={day} className={`calendar-day ${dayItems.length ? "calendar-day-populated" : ""}`}>
             <p className="text-[10px] text-white/75 sm:text-xs">{day}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1">{dayItems.map((item) => <Link key={item.id} href={itemHref(item)} title={`${item.title} · ${item.displayDate}`} aria-label={`${item.title}, ${item.displayDate}`} className="relative size-7 overflow-hidden rounded-md border border-white/15 bg-slate-950 sm:size-10 sm:rounded-lg"><MediaArtwork title={item.title} type={item.type} imageUrl={item.posterUrl} /></Link>)}</div>
+            <div className="calendar-day-items">{dayItems.map((item) => <Link key={item.id} href={itemHref(item)} title={`${item.title} · ${item.displayDate}`} aria-label={`${item.title}, ${item.displayDate}`} className="calendar-art"><MediaArtwork title={item.title} type={item.type} imageUrl={item.posterUrl} /></Link>)}</div>
           </div>;
         })}
+        {Array.from({ length: calendarCells - startOffset - monthDays }, (_, index) => <div key={`end-${index}`} aria-hidden="true"/>)}
       </div>
     </div>}
 
