@@ -27,7 +27,13 @@ async function spotifyJson<T>(path: string): Promise<T> {
     token = await refreshSpotifyAccessToken();
     if (token) response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
   }
-  if (!response.ok) throw new Error(response.status === 429 ? "Spotify is rate limiting requests. Try again shortly." : "Spotify couldn’t load this catalog right now.");
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Reconnect Spotify in Settings to continue.");
+    if (response.status === 403) throw new Error("Spotify denied catalog access (403). Check this app’s allowed users and the owner’s Premium subscription in Spotify’s Developer Dashboard.");
+    if (response.status === 429) throw new Error("Spotify is rate limiting requests. Try again shortly.");
+    const error = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new Error(error?.error?.message ? `Spotify: ${error.error.message}` : `Spotify catalog is unavailable (${response.status}). Try again shortly.`);
+  }
   return response.json() as Promise<T>;
 }
 
@@ -117,6 +123,7 @@ export function SpotifySearchResults({ query, returnTo, fallback, market = "US" 
   }
 
   if (!connected) return <>{fallback}</>;
+  if (error && !data) return <div className="space-y-6"><p role="status" className="rounded-xl border border-amber-100/15 bg-amber-100/[.04] p-3 text-xs text-amber-100/80">{error}</p>{fallback}</div>;
   const artists = data?.artists.items ?? [];
   const albums = data?.albums.items ?? [];
   const tracks = data?.tracks.items ?? [];

@@ -77,7 +77,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const spotify = useSpotifyConnected();
   const spotifySearch = state.type === "MUSIC" && !!state.q && spotify;
   const key = collectionKey(state);
-  const result = useDiscoveryCollection(key, !spotifySearch);
+  const result = useDiscoveryCollection(key);
   const returnTo = `/discover?${discoveryQuery(state)}`;
   const providerKey = `${state.type}:${state.country}`;
   const providerList = providers?.key === providerKey ? providers.items : [];
