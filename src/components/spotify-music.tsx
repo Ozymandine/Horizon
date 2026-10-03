@@ -173,7 +173,7 @@ export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fa
       const [songs, discography] = await Promise.all([
         // Artist top-tracks was removed from Spotify Development Mode in 2026.
         spotifyJson<{ tracks: Page<SpotifyTrack> }>(`/search?${new URLSearchParams({ q: `artist:${found.name}`, type: "track", limit: "10", market: "US" })}`),
-        spotifyJson<Page<SpotifyAlbum>>(`/artists/${found.id}/albums?include_groups=album,single,compilation&limit=50&market=US`),
+        spotifyJson<Page<SpotifyAlbum>>(`/artists/${found.id}/albums?include_groups=album,single,compilation&limit=10&market=US`),
       ]);
       if (cancelled) return;
       const artistId = found.id;
