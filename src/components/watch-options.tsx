@@ -1,8 +1,9 @@
 import Image from "next/image";
 import type { TmdbWatchOptions } from "@/lib/tmdb-watch-types";
 import { watchServices } from "@/lib/watch-services";
+import { CinemaShowtimes } from "@/components/cinema-showtimes";
 
-export function WatchOptions({ options }: { options: TmdbWatchOptions | null }) {
+export function WatchOptions({ options, movieTitle }: { options: TmdbWatchOptions | null; movieTitle?: string }) {
   const available = [...(options?.flatrate ?? []), ...(options?.free ?? []), ...(options?.ads ?? []), ...(options?.rent ?? []), ...(options?.buy ?? [])];
   const providers = watchServices.flatMap((service) => {
     const entry = available.find((provider) => service.ids.includes(provider.provider_id));
@@ -22,6 +23,7 @@ export function WatchOptions({ options }: { options: TmdbWatchOptions | null }) 
         ))}
       </div>
       {!providers.length && <p className="text-sm leading-6 text-slate-400">No availability is currently listed on your selected services.</p>}
+      {movieTitle && !available.length && <CinemaShowtimes title={movieTitle}/>}
     </section>
   );
 }

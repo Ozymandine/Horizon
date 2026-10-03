@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Bookmark, Compass, Settings, Waypoints } from "lucide-react";
 import clsx from "clsx";
@@ -15,9 +16,24 @@ const tabs = [
 
 export function FloatingDock() {
   const pathname = usePathname();
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 640px)");
+    let lastY = window.scrollY;
+    const update = () => {
+      const nextY = Math.max(0, window.scrollY);
+      if (!mobile.matches || nextY < 60) setHidden(false);
+      else if (Math.abs(nextY - lastY) > 5) setHidden(nextY > lastY);
+      lastY = nextY;
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    mobile.addEventListener("change", update);
+    update();
+    return () => { window.removeEventListener("scroll", update); mobile.removeEventListener("change", update); };
+  }, [pathname]);
 
   return (
-    <nav aria-label="Main navigation" className="fixed bottom-[calc(.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 px-2 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-3">
+    <nav aria-label="Main navigation" aria-hidden={hidden || undefined} inert={hidden} data-scroll-hidden={hidden} className="floating-dock fixed bottom-[calc(.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 -translate-x-1/2 px-2 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-3">
       <div className="glass flex items-center gap-1 rounded-full border-white/20 bg-slate-950/35 p-1.5 text-white shadow-2xl shadow-black/40 backdrop-blur-2xl">
         {tabs.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);

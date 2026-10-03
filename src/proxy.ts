@@ -3,6 +3,13 @@ import { hasValidSession, SESSION_COOKIE } from "@/lib/auth-session";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Keep browser storage and Spotify's HttpOnly refresh cookie on one origin
+  // across production deploys. API calls and genuine preview builds stay local.
+  if (process.env.VERCEL_ENV === "production" && request.method === "GET"
+    && /^entertainment-horizon-[a-z0-9-]+\.vercel\.app$/.test(request.nextUrl.hostname)
+    && !pathname.startsWith("/api/") && !pathname.startsWith("/_next/") && pathname !== "/favicon.ico") {
+    return NextResponse.redirect(new URL(`${pathname}${request.nextUrl.search}`, "https://entertainment-horizon.vercel.app"), 307);
+  }
   if (pathname === "/login" || pathname === "/api/auth/login" || pathname === "/api/auth/logout"
     || pathname.startsWith("/_next/") || pathname === "/favicon.ico") {
     return NextResponse.next();

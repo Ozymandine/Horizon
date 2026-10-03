@@ -100,7 +100,7 @@ export function TimelineSpine({ items }: { items: TimelineItem[] }) {
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => moveTo(Math.round(safePosition) - 1)} disabled={!months.length || safePosition <= 0} aria-label="Previous month" className="glass grid size-10 place-items-center rounded-full text-lg text-white transition hover:bg-white/10 disabled:opacity-30">‹</button>
-        <h2 className="min-w-40 text-lg font-semibold text-white sm:min-w-52 sm:text-2xl">{caption}</h2>
+        <h2 className="text-lg font-semibold text-white sm:text-2xl">{caption}</h2>
         <button type="button" onClick={() => moveTo(Math.round(safePosition) + 1)} disabled={!months.length || safePosition >= months.length - 1} aria-label="Next month" className="glass grid size-10 place-items-center rounded-full text-lg text-white transition hover:bg-white/10 disabled:opacity-30">›</button>
       </div>
       <div className="glass flex rounded-full p-1" role="group" aria-label="Timeline display">

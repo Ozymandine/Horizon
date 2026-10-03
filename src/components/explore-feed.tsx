@@ -84,7 +84,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const category = mediaCategories.find((entry) => entry.value === state.type)!;
   const rows = discoveryRows(state.type);
   const isExpanded = state.all || !!state.q;
-  const heroItems = featured?.key === key ? featured.items : (result.data?.items ?? []).filter((item) => state.type !== "GAME" || item.backdropUrl);
+  const heroItems = featured?.key === key ? featured.items : (result.data?.items ?? []).filter((item) => (state.type !== "GAME" || item.backdropUrl) && (state.type !== "MOVIE" || item.sourceId !== "1599191"));
   const categorySearch = state.type === "MOVIE" || state.type === "SHOW" ? filmSearch(state.q, state.type) : null;
   const searchYear = state.year || categorySearch?.year;
   const collectionTitle = state.q ? categorySearch ? `${categorySearch.label} ${category.label.toLowerCase()}${searchYear ? ` · ${searchYear}` : ""}` : `Results for “${state.q}”` : state.genre ? discoverShelves[state.type].find((entry) => entry.value === state.genre)?.label ?? category.label : rows.find((row) => row.sort === state.sort && !row.genre)?.label ?? category.label;

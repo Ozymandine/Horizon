@@ -55,7 +55,7 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
     <div className="hero-shade" aria-hidden="true" />
     {item ? <div key={`${item.source}:${item.sourceId}`} className="hero-copy">
       {item.type === "MUSIC" && item.posterUrl && <div className="hero-album"><Image src={item.posterUrl} alt={`${item.title} cover`} fill loading="eager" sizes="160px" className="object-cover"/></div>}
-      {item.logoUrl && failedLogo !== item.logoUrl ? <><h1 className="sr-only">{item.title}</h1><Image src={item.logoUrl} alt="" width={680} height={220} sizes="(max-width: 640px) 85vw, 40vw" className="hero-title-logo" onError={() => setFailedLogo(item.logoUrl ?? null)}/></> : <h1>{item.title}</h1>}
+      {item.logoUrl && failedLogo !== item.logoUrl ? <><h1 className="sr-only">{item.title}</h1><Image src={item.logoUrl} alt="" width={680} height={220} loading="eager" sizes="(max-width: 640px) 85vw, 40vw" className="hero-title-logo" onError={() => setFailedLogo(item.logoUrl ?? null)}/></> : <h1>{item.title}</h1>}
       <div className="hero-metadata">{item.voteAverage ? <span><Star size={14} fill="currentColor"/>{item.voteAverage.toFixed(1)}<span className="opacity-50">/{item.ratingScale ?? 10}</span></span> : null}<span>{item.displayDate}</span>{item.artistName && <span>{item.artistName}</span>}{item.tags?.[0] && <span>{item.tags[0]}</span>}</div>
       <p className="hero-description">{item.description === "Steam game listing." ? "Find your next favorite game. Explore trailers, screenshots, and everything you need to know." : item.description}</p>
       <div className="hero-actions">

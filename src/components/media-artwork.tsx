@@ -31,9 +31,9 @@ export function MediaArtwork({ title, type, imageUrl, fallbackUrls = [], classNa
   if (urls[imageIndex]) {
     return <Image key={urls[imageIndex]} src={urls[imageIndex]} alt="" aria-hidden="true" fill loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} unoptimized={unoptimized} sizes={sizes} quality={quality} onLoad={(event) => {
       const image = event.currentTarget;
-      const minWidth = type === "GAME" ? 180 : 240;
-      const minHeight = type === "GAME" ? 70 : 240;
-      if (image.naturalWidth < minWidth || image.naturalHeight < minHeight) setImageIndex((current) => current + 1);
+      // Responsive image candidates can be much smaller than the source artwork.
+      // Reject tiny placeholder assets, while keeping valid mobile candidates.
+      if (image.naturalWidth < 48 || image.naturalHeight < 48) setImageIndex((current) => current + 1);
     }} onError={() => setImageIndex((current) => current + 1)} className={`object-cover ${className}`} />;
   }
 

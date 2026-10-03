@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "horizon-spotify-refresh";
+const CLIENT_COOKIE = "horizon-spotify-client";
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 const COOKIE_AGE = 60 * 60 * 24 * 180;
 
@@ -16,13 +17,17 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function setRefreshCookie(response: NextResponse, token: string) {
+function setRefreshCookie(response: NextResponse, token: string, clientId: string) {
   response.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/api/spotify/session",
     maxAge: COOKIE_AGE,
+  });
+  response.cookies.set(CLIENT_COOKIE, clientId, {
+    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax",
+    path: "/api/spotify/session", maxAge: COOKIE_AGE,
   });
 }
 
@@ -34,6 +39,7 @@ function clearRefreshCookie(response: NextResponse) {
     path: "/api/spotify/session",
     maxAge: 0,
   });
+  response.cookies.set(CLIENT_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/spotify/session", maxAge: 0 });
 }
 
 function sameOrigin(request: Request) {
@@ -97,15 +103,23 @@ export async function POST(request: NextRequest) {
   try {
     const { response: spotifyResponse, payload } = await tokenRequest(requestBody);
     if (!spotifyResponse.ok || !payload.access_token) {
-      return jsonError(payload.error_description || "Spotify could not renew this session.", spotifyResponse.status === 400 || spotifyResponse.status === 401 ? 401 : 502);
+      const expired = payload.error === "invalid_grant";
+      const error = jsonError(payload.error_description || "Spotify could not renew this session.", expired ? 401 : spotifyResponse.status === 400 ? 400 : 502);
+      if (expired && input.grantType === "refresh_token") clearRefreshCookie(error);
+      return error;
     }
     const result = NextResponse.json({ access_token: payload.access_token, expires_in: payload.expires_in ?? 3600 });
     const refreshedToken = payload.refresh_token || refreshCookieFallback;
-    if (refreshedToken) setRefreshCookie(result, refreshedToken);
+    if (refreshedToken) setRefreshCookie(result, refreshedToken, input.clientId.trim());
     return result;
   } catch {
     return jsonError("Spotify is temporarily unavailable.", 502);
   }
+}
+
+export async function GET(request: NextRequest) {
+  const connected = Boolean(request.cookies.get(COOKIE_NAME)?.value);
+  return NextResponse.json({ connected, clientId: connected ? request.cookies.get(CLIENT_COOKIE)?.value ?? null : null }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function DELETE(request: NextRequest) {

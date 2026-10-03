@@ -52,6 +52,21 @@ export function getSpotifyConnectionSnapshot() {
   return spotifyConnected();
 }
 
+export async function restoreSpotifySession() {
+  if (spotifyConnected() && spotifyClientId()) return;
+  try {
+    const response = await fetch("/api/spotify/session", { cache: "no-store" });
+    if (!response.ok) return;
+    const session = await response.json() as { connected?: boolean; clientId?: string | null };
+    if (!session.connected) return;
+    if (session.clientId && /^[a-f\d]{32}$/i.test(session.clientId)) localStorage.setItem(SPOTIFY_CLIENT_KEY, session.clientId);
+    if (!spotifyClientId()) return;
+    localStorage.setItem(CONNECTED_KEY, "true");
+    notifySpotifyConnection();
+    notifySpotifyPreferencesChanged();
+  } catch { /* Keep the saved connection during temporary network failures. */ }
+}
+
 function randomString(length: number) {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(bytes, (byte) => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[byte % 62]).join("");
