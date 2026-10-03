@@ -50,7 +50,7 @@ export function CinematicHero({ items, returnTo, onFeature, market = "US" }: { i
   }
   return <section ref={carousel} className={`cinematic-hero ${item?.type === "MUSIC" ? "cinematic-hero-music" : ""}`} aria-roledescription="carousel" aria-label="Featured titles">
     {slides.map((slide, slideIndex) => <div key={`${slide.source}:${slide.sourceId}`} className="hero-scene" data-active={slideIndex === activeIndex} aria-hidden="true">
-      <MediaArtwork key={slide.backdropUrl ?? slide.posterUrl} title={slide.title} type={slide.type} imageUrl={(slide.backdropUrl ?? slide.posterUrl!).replace(/\/w(?:780|1280)\//, "/original/")} fallbackUrls={[...(slide.posterUrl ? [slide.posterUrl] : []), ...(slide.posterFallbackUrls ?? [])]} quality={90} priority={slideIndex === activeIndex} unoptimized={false} sizes="100vw" className="hero-art" />
+      <MediaArtwork key={slide.backdropUrl ?? slide.posterUrl} title={slide.title} type={slide.type} imageUrl={(slide.backdropUrl ?? slide.posterUrl!).replace(/\/w(?:780|1280)\//, "/original/")} fallbackUrls={[...(slide.posterUrl ? [slide.posterUrl] : []), ...(slide.posterFallbackUrls ?? [])]} quality={90} priority={slideIndex === activeIndex} unoptimized={false} sizes="(max-aspect-ratio: 16/9) 180vh, 100vw" className="hero-art" />
     </div>)}
     <div className="hero-shade" aria-hidden="true" />
     {item ? <div key={`${item.source}:${item.sourceId}`} className="hero-copy">
