@@ -1,87 +1,104 @@
-# Private playback
+# Private playback on Vercel
 
-## Components
+## Current provider status
 
-The movie/show details actions are **Play → Watch trailer → Add to My List → Add to timeline**. Play opens a standalone HTML5 player. Shows include season/episode selectors. No streaming iframe is embedded in Horizon.
+Horizon now runs the resolver and HLS relay inside Vercel Node functions. **Docker, Express, Puppeteer and Playwright are not required by the deployed playback routes.**
 
-Horizon authenticates every player, asset, resolver and media request with its existing private session. The browser sends a TMDB ID to `/api/resolve-stream`; the Next.js route forwards it to a separate Node.js/Express relay using a server-only bearer token. The relay returns an encrypted, expiring `/api/proxy-stream?token=…` link. The browser never receives a provider URL, relay credential or provider HTML.
+A working extractor must expose an HLS URL as JSON, clear HTML, a bounded base64 string, or a direct HLS response. On October 3, 2026, `https://vidsrc.to/embed/movie/603` returned HTTP 200 player HTML with no `.m3u8` URL. The public VidSrc addon example returned embed links only. Standard HTTP headers cannot make Axios execute an obfuscated player or reveal a stream that is absent from its response. Live VidSrc movie/episode playback remains unverified until a working public extractor is supplied. The function returns `422 NO_HLS_SOURCE` for that case, with no sample or iframe fallback.
 
-The relay first extracts playlist URLs from JSON/HTML/base64 **as data**. For the configured VidSrc HTML interface, it can run Chromium in an ephemeral Docker worker. The worker has no network interface, dashboard credentials, mounted host files or host browser profile. A bounded RPC broker supplies allowlisted HTTPS resources through validated, pinned public IPs. Provider JavaScript, including its own deobfuscation/canvas code, runs only in that worker. We do not implement provider-specific RC4 secrets or execute provider JavaScript in the Node process.
+## Install and configure
 
-The media relay rewrites HLS variants, audio/subtitle playlists, init segments, AES-128 keys and media segments. It supports byte ranges, bounded buffering and disconnect cancellation. It never forwards client cookies, authorization, IP headers or provider cookies to a CDN. Images, HTML and tracking metadata are rejected. This prevents client exposure to provider scripts/popups; it **does not remove ads already encoded into the video**, guarantee source availability, or conceal the relay server's IP from the provider.
-
-## Installation (Node 22+; Docker required for the HTML resolver)
-
-Run in the repository root:
-
-```powershell
-npm ci
-npm ci --prefix services/stream-relay
-docker build -f services/stream-relay/Dockerfile.worker -t horizon-resolver:1 services/stream-relay
-Copy-Item services/stream-relay/.env.example services/stream-relay/.env
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-Copy the generated token into `services/stream-relay/.env` as `STREAM_RELAY_TOKEN`. Put the same token in the root `.env.local` alongside:
+1. Use Node 22 or 24 and run `npm ci` in the repository root. Axios 1.20.0 and ipaddr.js 2.5.0 are locked dependencies. Plyr and hls.js are already installed and served locally.
+2. Keep the existing `SITE_PASSWORD`, stable `AUTH_SECRET`, TMDB and database settings. The private HttpOnly login session protects the resolver, player and every media request.
+3. Set these **server-only** Vercel environment variables for your working extractor:
 
 ```dotenv
-STREAM_RELAY_URL=http://127.0.0.1:4100
-STREAM_RELAY_TOKEN=<the same random token>
+# Replace these examples with a real public extractor; example.org is not a provider.
+STREAM_MOVIE_EXTRACTOR_URL=https://extractor.example.org/movie/{tmdbId}
+STREAM_SHOW_EXTRACTOR_URL=https://extractor.example.org/tv/{tmdbId}/{season}/{episode}
+STREAM_ALLOWED_HOSTS=cdn.example.org,segments.example.org
+STREAM_REFERER=https://extractor.example.org/
 ```
 
-Keep the existing `SITE_PASSWORD`, `AUTH_SECRET`, database and TMDB settings. These env files are ignored by Git. No Axios or BeautifulSoup is necessary: Node's HTTPS streams handle retrieval and Express handles the private API. Playwright is installed in the worker; Plyr and hls.js are self-hosted from Horizon's locked npm dependencies.
+The exact extractor hostnames are included automatically. Add every verified playlist, redirect, segment, audio, subtitle and AES-key hostname to `STREAM_ALLOWED_HOSTS`. Wildcards and arbitrary browser-supplied URLs are unsupported. Do not add advertising/analytics hosts just to make a player page load.
 
-Start the relay in one terminal:
+Leaving the extractor URLs empty uses VidSrc's documented `/embed/movie/{tmdbId}` and `/embed/tv/{tmdbId}/{season}/{episode}` paths. These are embed pages, **not documented raw-stream APIs**. `STREAM_USER_AGENT` optionally changes the standard browser User-Agent. `STREAM_TICKET_SECRET` optionally separates playback encryption from `AUTH_SECRET`; neither secret should change with a deployment. No `NEXT_PUBLIC_` settings, external relay URL, bearer token or local host service is needed.
 
-```powershell
-Set-Location services/stream-relay
-npm start
+4. Redeploy after changing server environment settings. For local verification, use `.env.local` and `npm run dev`; for production parity use `npm run build` then `npm start`.
+5. Sign in, open an actual movie or show details page, and select **Play**. The action order is Play → Watch trailer → Add to My List → Add to timeline. Shows provide season/episode selectors.
+
+## API contract
+
+The production-ready Node entry point is `api/stream.js`; it imports the complete commented implementation in `lib/stream-serverless.mjs`. `api/proxy-stream.js` exposes the companion relay. Because this repository uses Next.js, `src/app/api/stream/route.ts` and `src/app/api/proxy-stream/route.ts` mount the same core at their actual URLs, with Node runtime and a 30-second function maximum. `/api/resolve-stream` remains an alias for older player tabs.
+
+From the signed-in, same-origin frontend:
+
+```javascript
+const response = await fetch('/api/stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ type: 'movie', tmdbId: 603 }),
+});
+const result = await response.json();
+if (!response.ok) throw new Error(result.error);
+// Exact success shape: { "source": "https://YOUR-HORIZON-HOST/api/proxy-stream?token=..." }
+hls.loadSource(result.source);
 ```
 
-Start Horizon in another terminal:
+For an episode, send `{ type: 'show', tmdbId: 1399, season: 1, episode: 2 }`. GET also accepts these fields as query parameters and requires the same private session. POST additionally checks Origin and limits JSON to 4KB, including chunked requests.
 
-```powershell
-npm run build
-npm start
+A direct CDN URL alone would still require provider CORS and would expose the browser to that CDN. The returned absolute HTTPS `source` therefore points to Horizon's relay. That playlist rewrites every HLS resource to the same origin. Native Video.js HLS playback can consume this same `source` contract. The current Horizon player uses Plyr with hls.js and native HTML5 video.
+
+Failures return bounded JSON with an appropriate HTTP status:
+
+```json
+{ "error": "The provider timed out. Try again shortly.", "code": "PROVIDER_TIMEOUT", "requestId": "..." }
 ```
 
-For local development use `npm run dev` instead. Sign in, open a movie/show detail page and select Play. The relay binds loopback by default. The worker requires Docker's non-root Chromium sandbox and the included seccomp profile; it fails closed if Docker or the sandbox is unavailable. Do not disable the sandbox to work around a host configuration error.
+Vercel logs contain request ID, operation, phase, error code, status and elapsed time. They exclude cookies, credentials, Axios configuration, signed CDN URLs, upstream HTML and stack traces. Resolution has a 20-second overall deadline, individual Axios requests a 10-second timeout, and media relay requests a 25-second deadline. Provider errors are caught rather than escaping the function.
 
-## Provider configuration and verification
+For a standalone Node project that uses the root `api/*.js` entry points directly, install the same dependencies, include their imported helper modules, and configure:
 
-The current [VidSrc page](https://vidsrc.to/) publishes `/embed/movie/{id}` and `/embed/tv/{id}/{season}/{episode}`, rather than `https://vidsrc.to{id}`. At implementation time the sampled embed pages pointed to `vsembed.ru`. The configured templates use these documented paths. Their HTML includes trackers, which are excluded from the worker's default host list.
+```json
+{ "functions": { "api/stream.js": { "maxDuration": 30 }, "api/proxy-stream.js": { "maxDuration": 30 } } }
+```
 
-`STREAM_ALLOWED_HOSTS` is an exact host allowlist, not a wildcard or a browser-supplied URL. Both provider pages and every playlist/segment/CDN host must be on it. A changing provider can require additional **verified** script/API/CDN hosts. Failed resolution reports blocked hostnames without signed URLs; it does not silently allow arbitrary hosts. Do not add analytics/ad hosts simply to make all page resources load. There is no automatic trust of unknown CDN hosts.
+This extra `vercel.json` mapping is unnecessary for Horizon's Next.js route handlers.
 
-An endpoint can return HTTP 200 without exposing a usable stream. Real provider playback requires the worker to run successfully, a valid source for the requested title and the current CDN allowlist. Unsupported DRM, HLS variable substitution and provider challenges that cannot run in the isolated worker produce a clean error. There is no fallback third-party iframe.
+## Relay and player protection
 
-## Self-hosting and Vercel
+Axios uses the Node HTTP adapter with verified TLS, a fixed User-Agent/Referer, disabled automatic redirects and no environment proxy. Every redirect is validated separately. All DNS answers must be public, and the selected address is pinned to the socket to prevent DNS rebinding. Browser cookies, authorization, IP/forwarding headers and provider cookies never go upstream.
 
-For a completely private deployment, run **both Horizon and the relay on your own host**, behind HTTPS and your private network/VPN. Preserve the existing application login. For local use, all browser requests go to the Next.js origin; no permissive CORS is needed.
+Extractor bodies are capped at 2MB, manifests at 1MB, AES-128 keys at exactly 16 bytes and each streamed media chunk at 32MB. A playlist is validated before a playback ticket is issued. Tickets are encrypted six-hour capabilities; proxy endpoints do not accept arbitrary URLs. The relay supports byte ranges and disconnect cancellation, with backpressure rather than whole-file buffering. Streaming failures after response headers close the connection and are logged.
 
-Vercel can host the UI and authenticated forwarding routes, but cannot run this long-lived Docker resolver. `127.0.0.1:4100` on Vercel is not your computer. To connect that UI to a separately hosted relay, give the relay a reachable HTTPS origin, set `STREAM_RELAY_URL`/`STREAM_RELAY_TOKEN` in Vercel's server environment, and protect the relay behind TLS and its bearer authentication. The relay URL/token are never `NEXT_PUBLIC_` values. A Vercel UI remains cloud hosted, so choose full self-hosting if that is your privacy requirement.
+Only HLS playlists, approved media MIME types, subtitles and AES-128 keys are delivered. HTML, image/pixel responses, unrelated playlist metadata, DRM and unsupported HLS variable substitution are rejected. This prevents third-party player scripts and popup frames from running in the client. It does not remove advertising already encoded into the video, guarantee that a provider has a stream, or hide Vercel's own server IP from that provider.
 
-## Files and tests
+`src/lib/stream-player.ts` contains the complete HTML, CSS and JavaScript structure. `/api/stream-player` serves it with an HTTP CSP plus matching meta tag:
 
-Verification on this workstation passed 17 automated tests, lint, TypeScript and the production build. A public Big Buck Bunny HLS sample played through the authenticated relay and native player at 1080p with no frames or external player scripts. That sample is an ignored local test fixture, not a configured movie source.
+```text
+default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+connect-src 'self'; media-src 'self' blob:; font-src 'self'; frame-src 'none';
+frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'
+```
 
-Live VidSrc extraction has **not** been verified: Docker is not installed on this workstation, and no self-hosted worker address has been supplied. The deployed UI reports the missing relay setup. Complete the Docker setup and verify the current provider/CDN allowlist before relying on movie or episode playback.
+Player scripts/styles/sprites are served locally. Workers, ads and persistent player storage are disabled. Controls remain white. Existing YouTube trailers are separate from this standalone playback document.
 
-- `services/stream-relay/server.mjs`: authenticated resolver and reverse proxy.
-- `services/stream-relay/security.mjs`: host/DNS checks, pinned HTTPS, ranges and encrypted capabilities.
-- `services/stream-relay/hls.mjs`: data extraction and HLS rewriting.
-- `services/stream-relay/resolver.mjs` / `browser-worker.mjs`: isolated worker and bounded network broker.
-- `src/lib/stream-player.ts`: complete HTML, local CSS/JS and strict CSP. Player controls are white.
-- `src/app/api/stream-player/*`, `resolve-stream`, `proxy-stream`: same-origin authenticated integration.
+Vercel's function limits still apply. The relay uses a streamed response, which Vercel documents as an alternative to buffered payload limits; it remains subject to duration, bandwidth and plan limits. This is a per-segment relay, not a full movie download endpoint. Verify your provider's real chunk sizes and playback on the deployed plan.
+
+## Verification
 
 ```powershell
+npm test
 npm test --prefix services/stream-relay
-node --test --experimental-strip-types tests/spotify-pagination.test.mjs
 npm run lint
 npx tsc --noEmit
 npm run build
 ```
 
-The CSP uses local scripts/styles, same-origin connections/media plus MediaSource blobs, and `frame-src 'none'`. hls.js workers, external sprites, player ads and local-storage tracking are disabled. Existing YouTube trailers live on the details page, outside this standalone playback document.
+All 32 automated tests passed, along with lint, TypeScript and a production build. A local production browser test decoded the public sample at 1920×1080 through the new serverless-compatible relay, with zero frames and all player scripts on the application origin. Desktop and mobile movie headers had no taglines or horizontal overflow.
 
-Primary library guidance: [Plyr](https://github.com/sampotts/plyr), [hls.js](https://github.com/video-dev/hls.js), [Playwright's Docker/sandbox guidance](https://playwright.dev/docs/docker). The included seccomp profile is from Playwright's Apache-2.0 project (`utils/docker/seccomp_profile.json`).
+Tests cover exact source JSON, movies/episodes, base64/HTML/JSON parsing, input/authentication limits, provider HTTP failures/timeouts, sanitized logs, SSRF defenses, encrypted tickets, HLS rewriting, invalid media/keys, byte ranges, streamed responses above 4.5MB and the classic Node HTTP adapter. Public sample HLS verifies the relay/player pipeline separately; it does not prove VidSrc extraction.
+
+The older `services/stream-relay` Express/Docker experiment remains outside the active route dependency graph. Only its pure data/security helpers are reused; none of its browser worker or container modules are imported into Vercel functions.
+
+Primary guidance: [Axios request configuration](https://axios-http.com/docs/req_config), [Vercel streaming](https://vercel.com/docs/functions/streaming-functions), [Vercel payload guidance](https://vercel.com/kb/guide/how-to-bypass-vercel-body-size-limit-serverless-functions), [VidSrc embed documentation](https://vidsrc.to/), [Plyr](https://github.com/sampotts/plyr), [hls.js](https://github.com/video-dev/hls.js).

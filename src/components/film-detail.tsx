@@ -61,7 +61,6 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
       <div className="film-detail-intro">
         <Link href={backTo} className="film-detail-back">← {returnLabel(backTo)}</Link>
         <div className="film-detail-copy">
-          {details.tagline && <p className="film-tagline">{details.tagline}</p>}
           {logo ? <><h1 className="sr-only">{title}</h1><Image src={logo} alt="" width={640} height={220} sizes="(max-width: 640px) 85vw, 500px" className="film-title-logo"/></> : <h1>{title}</h1>}
           <div className="film-detail-meta">{details.vote_average > 0 && <span className="film-rating">★ {details.vote_average.toFixed(1)} <small>/ 10</small></span>}<span>{date?.slice(0, 4)}</span>{runtime ? <span>{runtime} min</span> : null}{certification && <span>{certification}</span>}</div>
           <div className="film-genres">{details.genres?.map((genre) => <Link key={genre.id} href={`/discover?type=${type}&genre=${genre.id}&all=1`}>{genre.name}</Link>)}</div>

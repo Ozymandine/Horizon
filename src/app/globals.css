@@ -339,15 +339,14 @@ input[type="range"] { accent-color: #dff7ef; }
 .timeline-card-track { justify-content: space-around; align-items: end; min-width: 100%; height: 100%; gap: clamp(24px, 5vw, 90px); padding: 4px 22px 10px; }
 .film-detail-page { position: relative; isolation: isolate; min-height: 100vh; padding-bottom: 140px; background: #090c0d; color: #f5f7f6; overflow: clip; }
 .film-detail-ambient { position: absolute; z-index: -1; inset: 360px 0 0; background-position: top center; background-size: 160% auto; background-repeat: no-repeat; filter: blur(100px) saturate(.7); opacity: .28; mask-image: linear-gradient(transparent, #000 20%, #0007 70%, transparent); pointer-events: none; }
-.film-detail-hero { position: relative; z-index: 2; min-height: 650px; }
+.film-detail-hero { position: relative; z-index: 2; min-height: 600px; }
 .film-detail-backdrop { object-fit: cover; object-position: center 28%; mask-image: linear-gradient(#000 45%, #000a 70%, transparent 100%); }
 .film-detail-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #05090ced, #05090c88 47%, #05090c12), linear-gradient(0deg, #090c0d, transparent 65%); mask-image: linear-gradient(#000 70%, transparent); }
-.film-detail-intro { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 260px; align-items: end; gap: 60px; min-height: 650px; max-width: 1360px; margin: auto; padding: 145px 44px 75px; }
+.film-detail-intro { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 260px; align-items: end; gap: 60px; min-height: 600px; max-width: 1360px; margin: auto; padding: 110px 44px 75px; }
 .film-detail-back { position: absolute; top: 30px; left: 44px; padding: 9px 15px; border: 1px solid #ffffff20; border-radius: 100px; color: #d5e0de; font-size: 13px; background: #090c0d44; backdrop-filter: blur(20px); }
 .film-detail-copy { max-width: 750px; }
 .film-detail-copy h1:not(.sr-only) { font-size: clamp(34px, 4.5vw, 70px); font-weight: 700; line-height: 1.05; letter-spacing: -.04em; text-wrap: balance; }
 .film-title-logo { width: auto; height: auto; max-width: 100%; max-height: 160px; object-fit: contain; object-position: left; filter: drop-shadow(0 5px 18px #000a); }
-.film-tagline { margin-bottom: 16px; color: #ffffffb2; font-size: 13px; font-style: italic; }
 .film-detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-top: 23px; font-size: 13px; color: #ffffffc4; }
 .film-rating { color: #e0eac6; font-weight: 600; } .film-rating small { color: #ffffff66; font-weight: 400; }
 .film-genres { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
@@ -399,9 +398,9 @@ input[type="range"] { accent-color: #dff7ef; }
 @media (max-width: 640px) {
   .discovery-header { gap: 7px; } .discovery-categories { order: 0; flex: auto; width: 100%; } .discovery-search { order: 1; width: 100%; }
   .hero-title-logo { max-height: 130px; max-width: 95%; }
-  .film-detail-intro { min-height: 640px; grid-template-columns: minmax(0, 1fr); padding: 150px 22px 48px; }
+  .film-detail-intro { min-height: 590px; grid-template-columns: minmax(0, 1fr); padding: 115px 22px 48px; }
   .film-detail-back { left: 22px; top: 22px; } .film-detail-poster { display: none; }
-  .film-title-logo { max-height: 130px; } .film-overview { font-size: 13px; line-height: 1.8; } .film-tagline { font-size: 11px; }
+  .film-title-logo { max-height: 130px; } .film-overview { font-size: 13px; line-height: 1.8; }
   .film-detail-actions .detail-action { font-size: 11px; padding: 10px 14px; }
   .film-detail-body { display: flex; flex-direction: column; padding: 0 22px; gap: 28px; }
   .film-aside { display: contents; } .film-aside > section:first-child { order: -1; }

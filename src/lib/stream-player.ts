@@ -55,7 +55,7 @@ export const PLAYER_SCRIPT = String.raw`(() => {
     try {
       const payload = { tmdbId, type };
       if (type === 'show') { payload.season = Number(season.value); payload.episode = Number(episode.value); }
-      const response = await fetch('/api/resolve-stream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
+      const response = await fetch('/api/stream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal });
       const data = await response.json();
       if (current !== generation) return;
       if (!response.ok) throw new Error(data.error || 'This stream is unavailable.');

@@ -4,7 +4,8 @@ const allowedTags = new Set(['EXTM3U', 'EXTINF', 'EXT-X-VERSION', 'EXT-X-TARGETD
 
 /** Rewrite variants, audio, subtitles, init segments, AES keys and ordinary segments to the same origin. */
 export function rewriteManifest(text, base, hosts, issue) {
-  if (!text.trimStart().startsWith('#EXTM3U')) throw new RelayError('Provider did not return an HLS playlist.');
+  if (!/^#EXTM3U(?:\r?\n|$)/.test(text.trimStart())) throw new RelayError('Provider did not return an HLS playlist.');
+  if (!/^#(?:EXTINF:|EXT-X-STREAM-INF:|EXT-X-I-FRAME-STREAM-INF:|EXT-X-PART:)/m.test(text)) throw new RelayError('Provider returned an empty HLS playlist.');
   let variant = false;
   const output = [];
   const relay = (value, kind) => {

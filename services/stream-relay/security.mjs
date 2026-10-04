@@ -89,13 +89,13 @@ export async function boundedBody(response, maximum = 2 * 1024 * 1024) {
 }
 
 /** Encrypted capabilities hide CDN URLs and expire; the relay never accepts arbitrary browser URLs. */
-export function ticketCodec(secret, now = () => Date.now()) {
+export function ticketCodec(secret, now = () => Date.now(), lifetimeMs = 2 * 60 * 60 * 1000) {
   const key = createHash('sha256').update(secret).digest();
   return {
     encode(resource) {
       const iv = randomBytes(12);
       const cipher = createCipheriv('aes-256-gcm', key, iv);
-      const data = Buffer.concat([cipher.update(JSON.stringify({ ...resource, expires: now() + 2 * 60 * 60 * 1000 })), cipher.final()]);
+      const data = Buffer.concat([cipher.update(JSON.stringify({ ...resource, expires: now() + lifetimeMs })), cipher.final()]);
       return Buffer.concat([iv, cipher.getAuthTag(), data]).toString('base64url');
     },
     decode(token) {
