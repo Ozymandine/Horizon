@@ -88,6 +88,9 @@ test('a blocked VidSrc falls through to the VidCore handshake, preflights HLS, a
   assert(fixture.calls.some((call) => call.url.includes('/1080/index.m3u8')));
   assert(!fixture.calls.some((call) => /vidlink|embed\.su|pixel|prime-token/.test(call.url)));
   assert(!JSON.stringify(logs).includes('secret'));
+  const blocked = JSON.parse(logs[0]);
+  assert.equal(blocked.upstreamHost, 'vidsrc.to');
+  assert.equal(blocked.upstreamStatus, 403);
   assert(!data.source.includes('cdn.example'));
 });
 

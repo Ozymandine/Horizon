@@ -6,12 +6,14 @@ Horizon now runs the resolver and HLS relay inside Vercel Node functions. **Dock
 
 On October 4, 2026, the Node resolver successfully resolved **The Matrix (TMDB 603)** and **Game of Thrones S1E1 (TMDB 1399)** through VidCore. Local checks fetched the live master, a 1920×1080 rendition, its initialization file and three media segments through Horizon's authenticated relay. These were actual provider streams, not sample files. Provider availability and keys can change; this does not guarantee every title or mirror.
 
+**Deployed live extraction is currently blocked upstream.** Production checks in Vercel's `iad1` and `fra1` regions both received HTTP 403 from the VidSrc and VidCore catalog pages. VidLink returned no HLS source, and Embed.su failed DNS. The crypto helper was reachable and the Vercel relay fetched a genuine, locally resolved VidCore master successfully, isolating the failure to catalog access rather than the player or CORS. The app correctly returns `502 ALL_PROVIDERS_FAILED`; it does not claim playback success or substitute a sample/iframe. Native token decoding cannot remove an upstream access block. Production playback needs an extractor/catalog endpoint that accepts Vercel's requests, configured using the custom extractor settings below.
+
 The default fallback array is `vidsrc,vidcore,vidlink,embedsu`. Every attempt has a deadline, and success is the exact `{ "source": "https://YOUR-HORIZON-HOST/api/proxy-stream?token=..." }` response. HLS playlists are validated before issuing a ticket. Built-in providers also preflight a video rendition; an accessible master pointing to a blocked/unapproved CDN cannot claim success. VidCore tries ranked mirrors and stops at the first verified one. All providers failing returns a controlled `502 ALL_PROVIDERS_FAILED` JSON error with a request ID.
 
 | Provider | Implementation | Current limitation |
 | --- | --- | --- |
 | VidSrc | Native byte-based RC4 source decoding, two-pass Vidplay ID encoding and futoken protocol | Current embed returns no legacy episode token locally; Vercel previously returned 403. Cryptography cannot remove an upstream IP block. |
-| VidCore | Axios catalog/CSRF handshake and ranked mirror unlock, with a server-side token helper | Verified locally for a movie and episode; depends on helper/provider availability and approved CDN hosts. |
+| VidCore | Axios catalog/CSRF handshake and ranked mirror unlock, with a server-side token helper | Verified locally for a movie and episode; catalog page returns 403 from both tested Vercel regions. |
 | VidLink | Native AES-CBC when a compatible key is configured; current token helper otherwise | Current test returned `null`; MP4/DASH are not mislabeled as HLS. |
 | Embed.su | Native bounded base64/config/server-hash decoding, then `/api/e/{hash}` | Host currently fails DNS locally; its historical protocol is regression tested with fixtures. |
 
@@ -78,7 +80,7 @@ Failures return bounded JSON with an appropriate HTTP status:
 { "error": "The provider timed out. Try again shortly.", "code": "PROVIDER_TIMEOUT", "requestId": "..." }
 ```
 
-Vercel logs contain request ID, operation, phase, provider name, error code, status, upstream HTTP status when available, and elapsed time. They exclude cookies, credentials, Axios configuration, signed CDN URLs, upstream HTML and stack traces. Resolution has a 28-second overall deadline within the 30-second function budget. Attempts allow 4 seconds for VidSrc, 14 for VidCore, 4 for VidLink and 3 for Embed.su; custom extractors allow 20 seconds. Individual Axios requests time out at 10 seconds and the relay at 25 seconds. Provider errors are caught rather than escaping the function.
+Vercel logs contain request ID, operation, phase, provider name, error code, status, upstream HTTP status and hostname when available, and elapsed time. Hostname diagnostics exclude paths and queries. Logs exclude cookies, credentials, Axios configuration, signed CDN URLs, upstream HTML and stack traces. Resolution has a 28-second overall deadline within the 30-second function budget. Attempts allow 4 seconds for VidSrc, 14 for VidCore, 4 for VidLink and 3 for Embed.su; custom extractors allow 20 seconds. Individual Axios requests time out at 10 seconds and the relay at 25 seconds. Provider errors are caught rather than escaping the function.
 
 For a standalone Node project that uses the root `api/*.js` entry points directly, install the same dependencies, include their imported helper modules, and configure:
 
