@@ -4,13 +4,34 @@
 
 Horizon now runs the resolver and HLS relay inside Vercel Node functions. **Docker, Express, Puppeteer and Playwright are not required by the deployed playback routes.**
 
-A working extractor must expose an HLS URL as JSON, clear HTML, a bounded base64 string, or a direct HLS response. On October 3, 2026, `https://vidsrc.to/embed/movie/603` returned HTTP 200 player HTML with no `.m3u8` URL. The public VidSrc addon example returned embed links only. Standard HTTP headers cannot make Axios execute an obfuscated player or reveal a stream that is absent from its response. Live VidSrc movie/episode playback remains unverified until a working public extractor is supplied. The function returns `422 NO_HLS_SOURCE` for that case, with no sample or iframe fallback.
+On October 4, 2026, the Node resolver successfully resolved **The Matrix (TMDB 603)** and **Game of Thrones S1E1 (TMDB 1399)** through VidCore. Local checks fetched the live master, a 1920×1080 rendition, its initialization file and three media segments through Horizon's authenticated relay. These were actual provider streams, not sample files. Provider availability and keys can change; this does not guarantee every title or mirror.
+
+The default fallback array is `vidsrc,vidcore,vidlink,embedsu`. Every attempt has a deadline, and success is the exact `{ "source": "https://YOUR-HORIZON-HOST/api/proxy-stream?token=..." }` response. HLS playlists are validated before issuing a ticket. Built-in providers also preflight a video rendition; an accessible master pointing to a blocked/unapproved CDN cannot claim success. VidCore tries ranked mirrors and stops at the first verified one. All providers failing returns a controlled `502 ALL_PROVIDERS_FAILED` JSON error with a request ID.
+
+| Provider | Implementation | Current limitation |
+| --- | --- | --- |
+| VidSrc | Native byte-based RC4 source decoding, two-pass Vidplay ID encoding and futoken protocol | Current embed returns no legacy episode token locally; Vercel previously returned 403. Cryptography cannot remove an upstream IP block. |
+| VidCore | Axios catalog/CSRF handshake and ranked mirror unlock, with a server-side token helper | Verified locally for a movie and episode; depends on helper/provider availability and approved CDN hosts. |
+| VidLink | Native AES-CBC when a compatible key is configured; current token helper otherwise | Current test returned `null`; MP4/DASH are not mislabeled as HLS. |
+| Embed.su | Native bounded base64/config/server-hash decoding, then `/api/e/{hash}` | Host currently fails DNS locally; its historical protocol is regression tested with fixtures. |
+
+**The working VidCore fallback uses `enc-dec.app` for its rotating token format. It is not a wholly self-contained cryptographic resolver.** No helper or provider JavaScript runs in the browser or Node. Only the server sends provider tokens to the helper. To avoid that dependency, configure `STREAM_PROVIDER_ORDER=vidsrc,embedsu` or supply your own compatible helper using `STREAM_CRYPTO_API_URL`; the two native legacy adapters do not currently provide verified live playback. This tradeoff is explicit rather than substituting embeds or unrelated sample media.
 
 ## Install and configure
 
 1. Use Node 22 or 24 and run `npm ci` in the repository root. Axios 1.20.0 and ipaddr.js 2.5.0 are locked dependencies. Plyr and hls.js are already installed and served locally.
 2. Keep the existing `SITE_PASSWORD`, stable `AUTH_SECRET`, TMDB and database settings. The private HttpOnly login session protects the resolver, player and every media request.
-3. Set these **server-only** Vercel environment variables for your working extractor:
+3. Built-in providers require no new environment variables. Keep `AUTH_SECRET` stable across commits. Optional **server-only** settings:
+
+```dotenv
+STREAM_PROVIDER_ORDER=vidsrc,vidcore,vidlink,embedsu
+STREAM_CRYPTO_API_URL=https://enc-dec.app/api
+# Only needed when the corresponding legacy protocol rotates:
+STREAM_VIDPLAY_KEYS=["KEY_ONE","KEY_TWO"]
+STREAM_VIDLINK_KEY=YOUR_64_HEX_CHARACTER_KEY
+```
+
+To use a custom extractor, set:
 
 ```dotenv
 # Replace these examples with a real public extractor; example.org is not a provider.
@@ -22,7 +43,9 @@ STREAM_REFERER=https://extractor.example.org/
 
 The exact extractor hostnames are included automatically. Add every verified playlist, redirect, segment, audio, subtitle and AES-key hostname to `STREAM_ALLOWED_HOSTS`. Wildcards and arbitrary browser-supplied URLs are unsupported. Do not add advertising/analytics hosts just to make a player page load.
 
-Leaving the extractor URLs empty uses VidSrc's documented `/embed/movie/{tmdbId}` and `/embed/tv/{tmdbId}/{season}/{episode}` paths. These are embed pages, **not documented raw-stream APIs**. `STREAM_USER_AGENT` optionally changes the standard browser User-Agent. `STREAM_TICKET_SECRET` optionally separates playback encryption from `AUTH_SECRET`; neither secret should change with a deployment. No `NEXT_PUBLIC_` settings, external relay URL, bearer token or local host service is needed.
+Leaving the extractor URLs empty enables the built-in fallback array. Setting custom URLs uses `custom` alone by default; explicitly set `STREAM_PROVIDER_ORDER=custom,vidcore,vidlink,embedsu` to combine it with fallbacks. `STREAM_USER_AGENT` optionally changes the standard browser User-Agent. `STREAM_TICKET_SECRET` optionally separates playback encryption from `AUTH_SECRET`; neither secret should change with a deployment. No `NEXT_PUBLIC_` settings, external relay host, bearer token or local host service is needed.
+
+The built-in media allowlist contains `moon.zenoak.top`, `pulsedesk.top` and `emberwave.top`, verified during the live checks. A newly rotated CDN must be verified and added as an exact hostname to `STREAM_ALLOWED_HOSTS`. Resolver responses cannot grant arbitrary host access. Encrypted tickets preserve the selected provider's server-owned Referer across playlist, initialization, segment and key requests. Browser cookies, IP, Origin and authorization never go upstream; CSRF headers are sent only during provider control requests and cannot follow a redirect to another origin.
 
 4. Redeploy after changing server environment settings. For local verification, use `.env.local` and `npm run dev`; for production parity use `npm run build` then `npm start`.
 5. Sign in, open an actual movie or show details page, and select **Play**. The action order is Play → Watch trailer → Add to My List → Add to timeline. Shows provide season/episode selectors.
@@ -55,7 +78,7 @@ Failures return bounded JSON with an appropriate HTTP status:
 { "error": "The provider timed out. Try again shortly.", "code": "PROVIDER_TIMEOUT", "requestId": "..." }
 ```
 
-Vercel logs contain request ID, operation, phase, error code, status and elapsed time. They exclude cookies, credentials, Axios configuration, signed CDN URLs, upstream HTML and stack traces. Resolution has a 20-second overall deadline, individual Axios requests a 10-second timeout, and media relay requests a 25-second deadline. Provider errors are caught rather than escaping the function.
+Vercel logs contain request ID, operation, phase, provider name, error code, status, upstream HTTP status when available, and elapsed time. They exclude cookies, credentials, Axios configuration, signed CDN URLs, upstream HTML and stack traces. Resolution has a 28-second overall deadline within the 30-second function budget. Attempts allow 4 seconds for VidSrc, 14 for VidCore, 4 for VidLink and 3 for Embed.su; custom extractors allow 20 seconds. Individual Axios requests time out at 10 seconds and the relay at 25 seconds. Provider errors are caught rather than escaping the function.
 
 For a standalone Node project that uses the root `api/*.js` entry points directly, install the same dependencies, include their imported helper modules, and configure:
 
@@ -95,10 +118,12 @@ npx tsc --noEmit
 npm run build
 ```
 
-All 32 automated tests passed, along with lint, TypeScript and a production build. A local production browser test decoded the public sample at 1920×1080 through the new serverless-compatible relay, with zero frames and all player scripts on the application origin. Desktop and mobile movie headers had no taglines or horizontal overflow.
+The regression suite now includes native cipher vectors, the complete VidCore handshake, failed-provider/failed-mirror fallback, cancellation, helper host validation, mismatched title rejection and Referer preservation across child tickets. Live movie and episode checks additionally fetch 1080p initialization and media bytes through the real relay. A previous local production browser test decoded the public sample at 1920×1080 with zero frames and same-origin player scripts; that sample check is separate from live extraction.
 
 Tests cover exact source JSON, movies/episodes, base64/HTML/JSON parsing, input/authentication limits, provider HTTP failures/timeouts, sanitized logs, SSRF defenses, encrypted tickets, HLS rewriting, invalid media/keys, byte ranges, streamed responses above 4.5MB and the classic Node HTTP adapter. Public sample HLS verifies the relay/player pipeline separately; it does not prove VidSrc extraction.
 
 The older `services/stream-relay` Express/Docker experiment remains outside the active route dependency graph. Only its pure data/security helpers are reused; none of its browser worker or container modules are imported into Vercel functions.
 
 Primary guidance: [Axios request configuration](https://axios-http.com/docs/req_config), [Vercel streaming](https://vercel.com/docs/functions/streaming-functions), [Vercel payload guidance](https://vercel.com/kb/guide/how-to-bypass-vercel-body-size-limit-serverless-functions), [VidSrc embed documentation](https://vidsrc.to/), [Plyr](https://github.com/sampotts/plyr), [hls.js](https://github.com/video-dev/hls.js).
+
+Protocol research: [scara78's legacy VidSrc protocol](https://github.com/scara78/vidsrc-new), [cool-dev-guy's separate VidSrc.net protocol](https://github.com/cool-dev-guy/vidsrc.ts), [historical Embed.su/VidLink protocols](https://github.com/heyitswit/vidsrc-bypass), [current crypto helper API and examples](https://github.com/smy778/EncDecEndpoints), [VidCore native resolver research](https://github.com/sharoon7171/vidcore-io-stream-resolver). The last framework recovers live material using a JavaScript VM; Horizon does not import or run that code. The adapters implement the documented data protocols and standard ciphers without fetching executable modules.
