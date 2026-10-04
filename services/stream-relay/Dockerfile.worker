@@ -1,0 +1,7 @@
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
+WORKDIR /worker
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY browser-worker.mjs ./
+USER pwuser
+CMD ["node", "browser-worker.mjs"]

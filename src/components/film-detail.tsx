@@ -51,6 +51,7 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
   const item: RadarItem = { source: "tmdb", sourceId: String(details.id), type, title, displayDate: dateLabel(date), releaseDate: date?.slice(0, 10) || null, sortTimestamp: date ? `${date.slice(0, 10)}T12:00:00.000Z` : null, isApproximate: !date, posterUrl: tmdbImage(details.poster_path), backdropUrl: backdrop, description: details.overview, externalUrl: null, tmdbId: details.id, genreIds: details.genres?.map((genre) => genre.id) ?? [], popularity: details.popularity ?? 0, voteAverage: details.vote_average, voteCount: details.vote_count, href: `/${kind}/${details.id}` };
   const related = (details.recommendations?.results ?? []).filter((entry) => entry.poster_path && entry.id !== details.id && !(type === "SHOW" && entry.genre_ids?.some((id) => id === 10763 || id === 10767))).slice(0, 16);
   const artwork = (details.images?.backdrops ?? []).slice(0, 10).map((entry) => tmdbImage(entry.file_path, "w1280")!).filter(Boolean);
+  const playerHref = `/api/stream-player?${new URLSearchParams({ tmdbId: String(details.id), type: movie ? "movie" : "show", title, returnTo: `/${kind}/${details.id}?returnTo=${encodeURIComponent(backTo)}` })}`;
 
   return <main className="film-detail-page">
     {backdrop && <div className="film-detail-ambient" style={{ backgroundImage: `url("${tmdbImage(details.backdrop_path, "w780")}")` }} aria-hidden="true"/>}
@@ -64,7 +65,7 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
           {logo ? <><h1 className="sr-only">{title}</h1><Image src={logo} alt="" width={640} height={220} sizes="(max-width: 640px) 85vw, 500px" className="film-title-logo"/></> : <h1>{title}</h1>}
           <div className="film-detail-meta">{details.vote_average > 0 && <span className="film-rating">★ {details.vote_average.toFixed(1)} <small>/ 10</small></span>}<span>{date?.slice(0, 4)}</span>{runtime ? <span>{runtime} min</span> : null}{certification && <span>{certification}</span>}</div>
           <div className="film-genres">{details.genres?.map((genre) => <Link key={genre.id} href={`/discover?type=${type}&genre=${genre.id}&all=1`}>{genre.name}</Link>)}</div>
-          <div className="film-detail-actions"><AddToTimelineButton item={item}/><AddToMyListMenu item={item}/>{trailer && <a href="#trailer" className="detail-action">▶ Trailer</a>}</div>
+          <div className="film-detail-actions"><a href={playerHref} className="detail-action">▶ Play</a>{trailer && <a href="#trailer" className="detail-action">▶ Watch trailer</a>}<AddToMyListMenu item={item}/><AddToTimelineButton item={item}/></div>
           <p className="film-overview">{details.overview || "A synopsis has not been published yet."}</p>
           <p className="film-release-line">{dateLabel(date)}{show?.number_of_seasons ? ` · ${show.number_of_seasons} seasons · ${show.number_of_episodes ?? 0} episodes` : ""}</p>
         </div>

@@ -10,6 +10,7 @@ import { ScrollRail } from "@/components/scroll-rail";
 import { useSpotifyConnected } from "@/lib/use-browser-preferences";
 import { ArtistHero } from "@/components/artist-hero";
 import { ArtistArtwork } from "@/components/artist-artwork";
+import { completeSpotifyPage } from "@/lib/spotify-pagination";
 
 type SpotifyImage = { url: string; width?: number; height?: number };
 type SpotifyArtist = { id: string; name: string; images?: SpotifyImage[]; external_urls?: { spotify?: string } };
@@ -37,14 +38,10 @@ async function spotifyJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function SpotifyCredit() {
-  return <span className="inline-flex items-center gap-1.5 text-[10px] text-white/45"><svg aria-hidden="true" viewBox="0 0 24 24" className="size-4"><circle cx="12" cy="12" r="12" fill="#1ed760"/><path d="M17.1 16.7a.75.75 0 0 1-1.03.25c-2.83-1.73-6.4-2.12-10.6-1.16a.75.75 0 1 1-.34-1.46c4.6-1.05 8.54-.6 11.72 1.34.35.21.46.68.25 1.03Zm1.47-3.27a.94.94 0 0 1-1.29.31c-3.24-1.99-8.18-2.56-12.01-1.4a.94.94 0 1 1-.55-1.8c4.38-1.33 9.82-.69 13.55 1.6.44.27.58.85.3 1.29Zm.11-3.43C14.8 7.68 8.4 7.46 4.7 8.58a1.12 1.12 0 1 1-.65-2.14c4.25-1.29 11.32-1.04 15.78 1.61a1.12 1.12 0 0 1-1.15 1.93Z" fill="#07150b"/></svg> Catalog provided by Spotify</span>;
-}
-
 function AlbumCard({ album, width = "w-[150px]" }: { album: SpotifyAlbum; width?: string }) {
   const image = album.images?.[0]?.url;
   return <Link href={`/music/albums/${album.id}`} className={`group ${width} shrink-0 snap-start`}>
-    <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/25 shadow-lg shadow-black/20">{image ? <Image src={image} alt={`${album.name} cover`} fill sizes="(max-width: 640px) 150px, 174px" className="object-cover transition duration-300 group-hover:scale-[1.035]" /> : <div className="grid size-full place-items-center text-white/50"><Music2 size={30}/></div>}</div>
+    <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/25 shadow-lg shadow-black/20">{image ? <Image src={image} alt={`${album.name} cover`} loading="eager" fill sizes="(max-width: 640px) 150px, 174px" className="object-cover transition duration-300 group-hover:scale-[1.035]" /> : <div className="grid size-full place-items-center text-white/50"><Music2 size={30}/></div>}</div>
     <span className="mt-2 block truncate text-sm font-medium text-white">{album.name}</span>
     <span className="mt-1 block truncate text-xs text-white/60">{album.artists.map((artist) => artist.name).join(", ")} · {album.release_date?.slice(0, 4) ?? ""}</span>
   </Link>;
@@ -131,7 +128,7 @@ export function SpotifySearchResults({ query, returnTo, fallback, market = "US" 
   const hasMore = Boolean(data?.artists.next || data?.albums.next || data?.tracks.next);
 
   return <div className="mx-auto max-w-[1180px] space-y-8">
-    <div className="flex items-center justify-between gap-3"><p className="text-xs text-white/50">Results from Spotify’s catalog. Search is paged by category.</p><SpotifyCredit/></div>
+    <div className="flex items-center justify-between gap-3"><p className="text-xs text-white/50">Results from Spotify’s catalog. Search is paged by category.</p></div>
     {error && <p role="status" className="rounded-xl border border-rose-200/15 bg-rose-200/[.05] p-3 text-xs text-rose-100">{error}</p>}
     {!data && !error && <div role="status" className="glass flex min-h-48 items-center justify-center rounded-3xl text-sm text-white/70"><LoaderCircle size={18} className="mr-2 animate-spin"/>Searching Spotify…</div>}
     {data && !topItems.length && !loading && <div className="glass rounded-3xl p-8 text-center"><h3 className="text-lg font-semibold text-white">Nothing matched “{query.trim()}”</h3><p className="mt-2 text-sm text-white/65">Spotify has no matching artist, album, or song in this market.</p></div>}
@@ -148,14 +145,12 @@ export function SpotifySearchResults({ query, returnTo, fallback, market = "US" 
 export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fallback, additionalReleases }: { artistName: string; spotifyArtistId?: string; returnTo: string; fallback: ReactNode; additionalReleases?: ReactNode }) {
   const connected = useSpotifyConnected();
   const catalogKey = spotifyArtistId || artistName.toLocaleLowerCase();
-  const [loading, setLoading] = useState(false);
   const [messageState, setMessageState] = useState<{ key: string; message: string } | null>(null);
-  const [catalogState, setCatalogState] = useState<{ key: string; artist: SpotifyArtist; tracks: SpotifyTrack[]; albums: SpotifyAlbum[]; nextAlbums: string | null } | null>(null);
+  const [catalogState, setCatalogState] = useState<{ key: string; artist: SpotifyArtist; tracks: SpotifyTrack[]; albums: SpotifyAlbum[] } | null>(null);
   const currentCatalog = catalogState?.key === catalogKey ? catalogState : null;
   const artist = currentCatalog?.artist ?? null;
   const tracks = currentCatalog?.tracks ?? [];
   const albums = currentCatalog?.albums ?? [];
-  const nextAlbums = currentCatalog?.nextAlbums ?? null;
   const message = messageState?.key === catalogKey ? messageState.message : "";
 
   useEffect(() => {
@@ -175,26 +170,17 @@ export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fa
         spotifyJson<{ tracks: Page<SpotifyTrack> }>(`/search?${new URLSearchParams({ q: `artist:${found.name}`, type: "track", limit: "10", market: "US" })}`),
         spotifyJson<Page<SpotifyAlbum>>(`/artists/${found.id}/albums?include_groups=album,single,compilation&limit=10&market=US`),
       ]);
+      const allAlbums = await completeSpotifyPage(discography, (url) => spotifyJson<Page<SpotifyAlbum>>(url), () => cancelled);
       if (cancelled) return;
       const artistId = found.id;
       const tracks = songs.tracks.items.filter((track, index, list) => track.artists.some((artist) => artist.id === artistId) && list.findIndex((other) => other.name.toLocaleLowerCase() === track.name.toLocaleLowerCase()) === index);
-      setCatalogState({ key: catalogKey, artist: found, tracks, albums: discography.items, nextAlbums: discography.next });
+      setCatalogState({ key: catalogKey, artist: found, tracks, albums: allAlbums });
       setMessageState((previous) => previous?.key === catalogKey ? null : previous);
     })().catch((cause: unknown) => {
       if (!cancelled) setMessageState({ key: catalogKey, message: cause instanceof Error ? cause.message : "Spotify artist catalog couldn’t load." });
     });
     return () => { cancelled = true; };
   }, [artistName, catalogKey, connected, spotifyArtistId]);
-
-  async function loadMoreAlbums() {
-    if (!nextAlbums || loading || !currentCatalog) return;
-    setLoading(true);
-    try {
-      const page = await spotifyJson<Page<SpotifyAlbum>>(nextAlbums);
-      setCatalogState((previous) => previous?.key === catalogKey ? { ...previous, albums: appendUnique(previous.albums, page.items), nextAlbums: page.next } : previous);
-    } catch (cause) { setMessageState({ key: catalogKey, message: cause instanceof Error ? cause.message : "More releases couldn’t load." }); }
-    finally { setLoading(false); }
-  }
 
   if (!connected || message && !artist) return <>{fallback}{connected && message && <p role="status" className="mt-4 text-xs text-white/55">Spotify catalog: {message}</p>}</>;
   if (!artist && !message) return <section role="status" className="glass mt-8 rounded-3xl p-8 text-sm text-white/70"><LoaderCircle size={17} className="mr-2 inline animate-spin"/>Loading {artistName || "artist"} from Spotify…</section>;
@@ -215,16 +201,13 @@ export function SpotifyArtistCatalog({ artistName, spotifyArtistId, returnTo, fa
 
   return <div className="space-y-9">
     {artist && <ArtistHero name={artist.name} imageUrl={artist.images?.[0]?.url} tracks={tracks.map(toTrack)} returnTo={returnTo}/>}
-    <div className="flex justify-end"><SpotifyCredit/></div>
     {message && <p role="status" className="text-xs text-amber-100/80">{message}</p>}
     <section><h2 className="mb-4 text-2xl font-semibold text-white">Songs</h2><MusicTrackList tracks={tracks.map(toTrack)} returnTo={returnTo}/></section>
     <section className="space-y-7"><h2 className="text-2xl font-semibold text-white">Discography</h2>
       {groups.map((group) => <section key={group.label}><h3 className="mb-3 text-lg font-medium text-white">{group.label}</h3><ScrollRail label={group.label}>{group.items.map((album) => <AlbumCard key={album.id} album={album} width="w-[158px] sm:w-[174px]"/>)}</ScrollRail></section>)}
       {!groups.length && <p className="glass rounded-2xl p-5 text-sm text-white/70">No Spotify releases are listed for this artist.</p>}
-      {nextAlbums && <button type="button" disabled={loading} onClick={() => void loadMoreAlbums()} className="rounded-full border border-white/15 bg-white/[.07] px-4 py-2 text-sm text-white/80 hover:bg-white/[.12] disabled:opacity-50">{loading ? "Loading…" : "Load more releases"}</button>}
     </section>
     {additionalReleases}
-    <p className="text-[10px] text-white/40">Artist: {artist?.name} · Catalog provided by Spotify.</p>
   </div>;
 }
 
@@ -254,7 +237,7 @@ export function SpotifyAlbumCatalog({ title, artist, returnTo, fallback }: { tit
   if (!connected) return <>{fallback}</>;
   if (!tracks && !error) return <section role="status" className="mt-10"><h2 className="mb-4 text-xl font-semibold text-white">Songs</h2><div className="glass rounded-2xl p-5 text-sm text-white/70"><LoaderCircle size={16} className="mr-2 inline animate-spin"/>Loading album from Spotify…</div></section>;
   if (error || !tracks) return <><p role="status" className="mt-8 text-xs text-white/55">Spotify catalog: {error || "Track listings are unavailable."}</p>{fallback}</>;
-  return <section className="mt-10"><div className="mb-4 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-white">Songs</h2><p className="mt-1 text-sm text-white/60">Full-track playback from Spotify.</p></div><SpotifyCredit/></div><MusicTrackList tracks={tracks.map(toTrack)} returnTo={returnTo}/></section>;
+  return <section className="mt-10"><div className="mb-4 flex items-end justify-between gap-3"><div><h2 className="text-xl font-semibold text-white">Songs</h2><p className="mt-1 text-sm text-white/60">Full-track playback from Spotify.</p></div></div><MusicTrackList tracks={tracks.map(toTrack)} returnTo={returnTo}/></section>;
 }
 
 export function SpotifyAlbumProfile({ spotifyAlbumId }: { spotifyAlbumId: string }) {
@@ -287,8 +270,8 @@ export function SpotifyAlbumProfile({ spotifyAlbumId }: { spotifyAlbumId: string
 
   return <div className="space-y-8">
     <header className="glass flex flex-col gap-5 rounded-3xl p-5 sm:flex-row sm:items-end sm:p-8">
-      <div className="relative size-44 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 sm:size-56">{album.images?.[0]?.url && <Image src={album.images[0].url} alt={`${album.name} cover`} fill sizes="(max-width: 640px) 176px, 224px" className="object-cover"/>}</div>
-      <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.2em] text-white/55">{album.album_type === "single" ? ((album.total_tracks ?? 1) >= 3 && (album.total_tracks ?? 1) <= 6 ? "EP / multi-track single" : "Single") : album.album_type === "compilation" ? "Compilation" : "Album"}</p><h1 className="mt-2 text-3xl font-semibold text-white sm:text-5xl">{album.name}</h1><p className="mt-2 flex flex-wrap items-center gap-x-1 text-sm text-white/70">{album.artists.map((artist, index) => <span key={artist.id}><Link href={`/music/artists/${artist.id}`} className="hover:text-white hover:underline">{artist.name}</Link>{index < album.artists.length - 1 ? ", " : ""}</span>)}<span>· {album.release_date?.slice(0, 4) ?? ""}</span></p><div className="mt-4"><SpotifyCredit/></div></div>
+      <div className="relative size-44 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 sm:size-56">{album.images?.[0]?.url && <Image src={album.images[0].url} alt={`${album.name} cover`} loading="eager" fill sizes="(max-width: 640px) 176px, 224px" className="object-cover"/>}</div>
+      <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[.2em] text-white/55">{album.album_type === "single" ? ((album.total_tracks ?? 1) >= 3 && (album.total_tracks ?? 1) <= 6 ? "EP / multi-track single" : "Single") : album.album_type === "compilation" ? "Compilation" : "Album"}</p><h1 className="mt-2 text-3xl font-semibold text-white sm:text-5xl">{album.name}</h1><p className="mt-2 flex flex-wrap items-center gap-x-1 text-sm text-white/70">{album.artists.map((artist, index) => <span key={artist.id}><Link href={`/music/artists/${artist.id}`} className="hover:text-white hover:underline">{artist.name}</Link>{index < album.artists.length - 1 ? ", " : ""}</span>)}<span>· {album.release_date?.slice(0, 4) ?? ""}</span></p></div>
     </header>
     {error && <p role="status" className="text-sm text-amber-100/80">{error}</p>}
     <section><div className="mb-3"><h2 className="text-xl font-semibold text-white">Songs</h2><p className="mt-1 text-sm text-white/60">{tracks.length} tracks · Play through your connected Spotify account.</p></div><MusicTrackList tracks={tracks.map(toTrack)} returnTo={`/music/albums/${spotifyAlbumId}`}/></section>

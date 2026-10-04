@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  outputFileTracingIncludes: {
+    "/api/stream-player/assets/*": ["node_modules/plyr/dist/plyr.min.js", "node_modules/plyr/dist/plyr.css", "node_modules/plyr/dist/plyr.svg", "node_modules/hls.js/dist/hls.min.js"],
+  },
   images: {
     qualities: [75, 90],
     // Local dev often runs behind a network proxy that cannot fetch remote artwork.
