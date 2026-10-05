@@ -71,7 +71,7 @@ test('Embed.su nested base64 configurations ignore its advertisement URL', () =>
 });
 
 test('custom source selection and provider order reject unknown or duplicated fallback names', () => {
-  assert.deepEqual(providerOrder({}), ['vidsrc', 'vidcore', 'vidlink', 'embedsu']);
+  assert.deepEqual(providerOrder({}), ['miami', 'boise', 'orlando']);
   assert.deepEqual(providerOrder({ STREAM_MOVIE_EXTRACTOR_URL: 'https://example.org' }), ['custom']);
   for (const value of ['vidsrc,vidsrc', 'evil', 'custom', 'vidsrc,']) assert.throws(() => providerOrder({ STREAM_PROVIDER_ORDER: value }), /order/);
 });

@@ -1,0 +1,3 @@
+// Synthetic sources and seed; no provider credentials or signed live URLs.
+export const seed = 'fixture-seed';
+export const encoded = '_ugkauLG68RJWI20rUQfzxtjAKFQXj01fF3kUlC7qNvApUmDOXcp2q253jEcNZSJ8uFvRHAGrm9ZMzvfQ6yJ8G9UDxfotAtgPXAm5GmAI1poRXQm7kLIhZ0Hs-igrsq7vZrVmb6k0lLHi1l9JOrzCzbaSQwMFIw3Yotft-o2IM8xnQhNj36n0F_AKyVrtWNnIWbGSxZosakk6vY0kVnQF4NRryneLhFz3b6e17ovB435r43OziEp-FO4aImu9A';

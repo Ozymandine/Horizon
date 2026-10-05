@@ -10,3 +10,4 @@ src/generated/prisma/
 next-env.d.ts
 
 .vercel
+backend/.build/

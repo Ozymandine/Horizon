@@ -1,0 +1,31 @@
+# Render Blueprint: native Node service; build from the repository root.
+# Free plan is for reachability/playback verification before choosing paid hosting.
+services:
+  - type: web
+    name: horizon-stream-resolver
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci --prefix backend --omit=dev && npm run build --prefix backend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: STREAM_RELAY_TOKEN
+        generateValue: true
+      - key: STREAM_PROVIDER_ORDER
+        value: miami,boise,orlando
+      - key: STREAM_CRYPTO_API_URL
+        value: https://enc-dec.app/api
+    buildFilter:
+      paths:
+        - backend/**
+        - lib/stream-*.mjs
+        - services/stream-relay/security.mjs
+        - services/stream-relay/hls.mjs
+        - render.yaml
