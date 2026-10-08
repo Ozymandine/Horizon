@@ -53,6 +53,18 @@ test('hosted server discovery follows Render configuration and replaces untruste
   }
 });
 
+test('the hosted gateway retains only a registered selected-server header', async () => {
+  const result = await handleStreamRequest(resolveRequest(), env, { log, renderUpstream: async () => body(source, 200, { 'x-horizon-stream-server': 'orlando' }) });
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get('x-horizon-stream-server'), 'orlando');
+  assert.deepEqual(Object.keys(await result.json()), ['source']);
+  for (const server of ['__proto__', 'unknown', 'https://signed.example/?secret=hidden']) {
+    const rejected = await handleStreamRequest(resolveRequest(), env, { log, renderUpstream: async () => body(source, 200, { 'x-horizon-stream-server': server }) });
+    assert.equal(rejected.status, 502);
+    assert.equal((await rejected.json()).code, 'INVALID_RENDER_SOURCE');
+  }
+});
+
 test('private app authentication, origin and ID validation precede any Render call', async () => {
   let calls = 0;
   const dependencies = { log, renderUpstream: async () => { calls++; return body(source); } };

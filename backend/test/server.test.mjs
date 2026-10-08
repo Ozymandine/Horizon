@@ -23,7 +23,9 @@ async function upstream(url, config, options) {
   if (url.startsWith('https://extractor.example')) return { url, ...incoming(JSON.stringify({ source: 'https://cdn.example/master.m3u8' })) };
   if (url.endsWith('/master.m3u8')) return { url, ...incoming(master, 200, 'application/vnd.apple.mpegurl') };
   if (url.endsWith('/index.m3u8')) return { url, ...incoming(rendition, 200, 'application/vnd.apple.mpegurl') };
-  return { url, ...incoming(url.endsWith('/key') ? Buffer.alloc(16) : Buffer.alloc(5000, 0x47), 200, url.endsWith('/segment.ts') ? 'video/mp2t' : 'application/octet-stream') };
+  const buffer = url.endsWith('/key') ? Buffer.alloc(16) : Buffer.alloc(5000, 0x47);
+  if (url.endsWith('/init.mp4')) buffer.write('ftyp', 4);
+  return { url, ...incoming(buffer, 200, url.endsWith('/segment.ts') ? 'video/mp2t' : 'application/octet-stream') };
 }
 async function service(t, dependencies = { upstream, log: (value) => logs.push(JSON.parse(value)) }) {
   const server = createApp(configuration(environment), dependencies).listen(0, '127.0.0.1');

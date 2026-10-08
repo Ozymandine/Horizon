@@ -7,7 +7,9 @@ import { WatchOptions } from "@/components/watch-options";
 import { ScrollRail } from "@/components/scroll-rail";
 import { FilmArtwork } from "@/components/film-artwork";
 import { NewsPanel } from "@/components/news-panel";
+import { EpisodeBrowser } from "@/components/episode-browser";
 import { tmdbImage, type TmdbMovieDetails, type TmdbShowDetails } from "@/lib/tmdb";
+import { playbackCatalog } from "@/lib/playback-metadata";
 import type { TmdbWatchOptions } from "@/lib/tmdb-watch-types";
 import type { RadarItem } from "@/lib/radar";
 import { returnLabel } from "@/lib/return-to";
@@ -21,13 +23,14 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
   const title = movie?.title ?? show!.name;
   const kind = movie ? "movies" : "shows";
   const type = movie ? "MOVIE" : "SHOW";
+  const playback = playbackCatalog(details);
   const backdrop = tmdbImage(details.backdrop_path, "original");
   const logoPath = details.images?.logos?.find((entry) => entry.iso_639_1 === "en")?.file_path ?? details.images?.logos?.find((entry) => entry.iso_639_1 === null)?.file_path;
   const logo = tmdbImage(logoPath ?? null, "w780");
   const trailer = details.videos?.results?.find((video) => video.site === "YouTube" && video.type === "Trailer" && video.official) ?? details.videos?.results?.find((video) => video.site === "YouTube" && video.type === "Trailer") ?? details.videos?.results?.find((video) => video.site === "YouTube");
   const usDates = movie?.release_dates?.results?.find((region) => region.iso_3166_1 === "US")?.release_dates ?? [];
   const date = movie ? usDates.find((release) => release.type === 3)?.release_date ?? movie.release_date : show!.first_air_date;
-  const certification = usDates.find((release) => release.certification)?.certification;
+  const certification = playback.certification;
   const cast = details.credits?.cast?.slice(0, 20) ?? [];
   const crew = details.credits?.crew ?? [];
   const runtime = movie?.runtime ?? show?.episode_run_time?.[0];
@@ -71,11 +74,11 @@ export function FilmDetail({ details, watchOptions, backTo }: { details: TmdbMov
         {details.poster_path && <div className="film-detail-poster"><Image src={tmdbImage(details.poster_path, "w500")!} alt={`${title} poster`} fill sizes="260px" className="object-cover"/></div>}
       </div>
     </section>
+    {show && playback.seasons.length > 0 && <EpisodeBrowser key={details.id} tmdbId={details.id} title={title} seasons={playback.seasons} returnTo={`/${kind}/${details.id}?returnTo=${encodeURIComponent(backTo)}`}/>}
     <div className="film-detail-body">
       <div className="film-main-column">
         {cast.length > 0 && <section><h2>Cast</h2><ScrollRail label="cast" trackClassName="film-cast-track">{cast.map((person) => <article key={person.id} className="film-cast-person"><div>{person.profile_path ? <Image src={tmdbImage(person.profile_path, "w185")!} alt="" fill sizes="90px" className="object-cover"/> : <span>{person.name.slice(0, 1)}</span>}</div><h3>{person.name}</h3><p>{person.character}</p></article>)}</ScrollRail></section>}
         {show?.next_episode_to_air && <section className="film-next-episode glass"><h2>Next episode</h2><p>Season {show.next_episode_to_air.season_number}, episode {show.next_episode_to_air.episode_number} · {show.next_episode_to_air.name}</p><span>{dateLabel(show.next_episode_to_air.air_date)}</span></section>}
-        {!!show?.seasons?.length && <section><h2>Seasons</h2><ScrollRail label="seasons" trackClassName="film-seasons-track">{show.seasons.filter((season) => season.season_number > 0).map((season) => <article key={season.id} className="film-season"><div>{season.poster_path && <Image src={tmdbImage(season.poster_path, "w185")!} alt="" fill sizes="125px" className="object-cover"/>}</div><h3>{season.name}</h3><span>{season.episode_count} episodes · {season.air_date?.slice(0, 4) ?? "TBA"}</span>{season.overview && <p>{season.overview}</p>}</article>)}</ScrollRail></section>}
         {trailer && <section id="trailer"><h2>Trailers & clips</h2><VideoPlayer videoKey={trailer.key} title={title} posterUrl={tmdbImage(details.backdrop_path, "w780")} fallbackUrl={`https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}`}/></section>}
         {artwork.length > 0 && <section><h2>Artwork & stills</h2><FilmArtwork title={title} images={artwork}/></section>}
         {related.length > 0 && <section><h2>More like this</h2><ScrollRail label="related titles" trackClassName="film-related-track">{related.map((entry) => <Link key={entry.id} href={`/${kind}/${entry.id}?returnTo=${encodeURIComponent(`/${kind}/${details.id}?returnTo=${encodeURIComponent(backTo)}`)}`} className="film-related-card" prefetch={false}><div><Image src={tmdbImage(entry.poster_path, "w342")!} alt="" fill sizes="145px" className="object-cover"/></div><h3>{"title" in entry ? entry.title : entry.name}</h3><p>{entry.vote_average > 0 ? `★ ${entry.vote_average.toFixed(1)}` : ""}</p></Link>)}</ScrollRail></section>}

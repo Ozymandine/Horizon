@@ -12,6 +12,7 @@ const cookie = `horizon_session=${expires}.${createHmac('sha256', env.AUTH_SECRE
 const logs = [];
 const log = (value) => logs.push(JSON.parse(value));
 const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x1080\n1080/index.m3u8\n';
+const rendition = '#EXTM3U\n#EXTINF:10,\nsegment.ts\n#EXT-X-ENDLIST\n';
 function incoming(body, statusCode = 200, headers = {}) {
   const response = Readable.from([Buffer.from(body)]);
   response.statusCode = statusCode;
@@ -22,7 +23,10 @@ function request(payload = { type: 'movie', tmdbId: 603 }, overrides = {}) {
   return new Request('https://horizon.example/api/stream', { method: 'POST', headers: { cookie, origin: 'https://horizon.example', 'content-type': 'application/json', ...overrides.headers }, body: typeof payload === 'string' ? payload : JSON.stringify(payload), ...overrides, ...(overrides.headers ? { headers: { cookie, origin: 'https://horizon.example', 'content-type': 'application/json', ...overrides.headers } } : {}) });
 }
 function upstreamFixture(source = JSON.stringify({ sources: [{ file: 'https://cdn.example/master.m3u8?private=secret' }] })) {
-  return async (url) => ({ url, response: incoming(url.startsWith('https://extractor.example') ? source : master) });
+  return async (url) => {
+    const path = new URL(url).pathname;
+    return { url, response: path.endsWith('/index.m3u8') ? incoming(rendition) : path.endsWith('.ts') ? incoming(Buffer.alloc(564, 0x47), 200, { 'content-type': 'video/mp2t' }) : /^\/(?:movie|tv)\//.test(path) ? incoming(source) : incoming(master) };
+  };
 }
 async function resolve(source) {
   const response = await handleStreamRequest(request(), env, { upstream: upstreamFixture(source), log });
@@ -43,6 +47,7 @@ test('exact source contract is an absolute same-origin encrypted HLS URL', async
   assert(!data.source.includes('cdn.example'));
   assert.equal(streamConfiguration(env).tickets.decode(url.searchParams.get('token')).url, 'https://cdn.example/master.m3u8?private=secret');
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(response.headers.get('x-horizon-stream-server'), 'custom');
 });
 
 test('clear HTML, nested JSON, escaped and base64 source wrappers resolve without script execution', async () => {

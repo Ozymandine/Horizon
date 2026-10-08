@@ -35,13 +35,13 @@ test('source decoding rejects wrong seeds, mismatched media IDs, oversized token
   }
 });
 
-test('Miami and Boise map movie and TV identifiers and share only short-lived seed data', async () => {
+test('native mirrors map movie and TV identifiers and share only short-lived seed data', async () => {
   const calls = [], cache = new Map();
   const read = async (url, settings) => {
     calls.push({ url: new URL(url), referer: settings.referer });
     return { text: new URL(url).pathname === '/seed' ? JSON.stringify({ seed, ttlMs: 30000 }) : encoded };
   };
-  for (const id of ['miami', 'boise']) {
+  for (const id of ['miami', 'boise', 'orlando', 'paris', 'munich']) {
     const candidates = await resolveProvider(id, { type: 'show', tmdbId: 603, season: 2, episode: 5 }, env, { read, config, seedCache: cache });
     assert.equal(candidates[0], 'https://cdn.example/master.m3u8');
   }
@@ -53,6 +53,93 @@ test('Miami and Boise map movie and TV identifiers and share only short-lived se
     assert.equal(call.url.searchParams.get('enc'), '2');
     assert.equal(call.referer, 'https://www.movy.sx/');
   }
+});
+
+test('Automatic checks every enabled server across bounded waves before returning unavailable', async () => {
+  const checked = [];
+  let active = 0, highest = 0;
+  const upstream = async (url) => {
+    const path = new URL(url).pathname;
+    active++; highest = Math.max(highest, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active--;
+    if (path === '/seed') return { url, response: response(JSON.stringify({ seed, ttlMs: 30000 })) };
+    checked.push(path);
+    return { url, response: response('unavailable', 404) };
+  };
+  const result = await handleStreamRequest(request(), { AUTH_SECRET: env.AUTH_SECRET }, { upstream, seedCache: new Map(), log: () => {} });
+  assert.equal(result.status, 502);
+  assert.equal((await result.json()).code, 'ALL_PROVIDERS_FAILED');
+  assert.deepEqual(checked.sort(), ['/boise/sources', '/miami/sources', '/munich/sources', '/orlando/sources', '/paris/sources']);
+  assert(highest <= 3);
+});
+
+test('concurrent source checks share one seed request and release failed seed promises', async () => {
+  const seedCache = new Map(), seedPending = new Map();
+  let seeds = 0, fail = true;
+  const read = async (url) => {
+    if (new URL(url).pathname === '/seed') {
+      seeds++;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (fail) throw new Error('seed unavailable');
+      return { text: JSON.stringify({ seed, ttlMs: 30000 }) };
+    }
+    return { text: encoded };
+  };
+  const resolve = (id) => resolveProvider(id, { type: 'movie', tmdbId: 603 }, env, { config, read, seedCache, seedPending });
+  assert((await Promise.allSettled(['miami', 'boise', 'orlando'].map(resolve))).every((entry) => entry.status === 'rejected'));
+  assert.equal(seeds, 1);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(seedPending.size, 0);
+  fail = false;
+  assert((await Promise.all(['miami', 'boise', 'orlando'].map(resolve))).every((sources) => sources.length === 2));
+  assert.equal(seeds, 2);
+});
+
+test('Automatic starts all three default servers and picks Orlando when earlier servers lack media', async () => {
+  const sources = [], logs = [];
+  let seeds = 0;
+  const upstream = async (url, _settings, options) => {
+    const path = new URL(url).pathname;
+    if (path === '/seed') { seeds++; await new Promise((resolve) => setTimeout(resolve, 5)); return { url, response: response(JSON.stringify({ seed, ttlMs: 30000 })) }; }
+    if (path.endsWith('/sources')) {
+      sources.push(path);
+      return { url, response: response(path === '/orlando/sources' ? encoded : 'unavailable', path === '/orlando/sources' ? 200 : 404) };
+    }
+    if (path.endsWith('.m4s')) {
+      assert.equal(options.range, 'bytes=0-65535');
+      const media = response(Buffer.from('000000106d6f6f660000000000000000', 'hex'));
+      media.headers['content-type'] = 'video/mp4';
+      return { url, response: media };
+    }
+    return { url, response: response('#EXTM3U\n#EXTINF:8,\nsegment.m4s\n#EXT-X-ENDLIST\n') };
+  };
+  const result = await handleStreamRequest(request(), { ...env, STREAM_PROVIDER_ORDER: 'miami,boise,orlando' }, { upstream, seedCache: new Map(), log: (value) => logs.push(JSON.parse(value)) });
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get('x-horizon-stream-server'), 'orlando');
+  assert.deepEqual(Object.keys(await result.json()), ['source']);
+  assert.deepEqual(sources.sort(), ['/boise/sources', '/miami/sources', '/orlando/sources']);
+  assert.equal(seeds, 1);
+  assert.equal(logs.filter((entry) => entry.phase === 'extractor').length, 2);
+});
+
+test('a responsive third server wins before the first two deadlines and cancels their work', async () => {
+  let aborted = 0;
+  const upstream = async (url, _settings, { signal }) => {
+    const path = new URL(url).pathname;
+    if (path === '/seed') return { url, response: response(JSON.stringify({ seed, ttlMs: 30000 })) };
+    if (path === '/miami/sources' || path === '/boise/sources') await new Promise((_resolve, reject) => signal.addEventListener('abort', () => { aborted++; reject(signal.reason); }, { once: true }));
+    const body = path === '/orlando/sources' ? encoded : path.endsWith('.m4s') ? Buffer.from('000000106d6f6f660000000000000000', 'hex') : '#EXTM3U\n#EXTINF:8,\nsegment.m4s\n#EXT-X-ENDLIST\n';
+    const media = response(body); if (path.endsWith('.m4s')) media.headers['content-type'] = 'video/mp4';
+    return { url, response: media };
+  };
+  const started = Date.now();
+  const result = await handleStreamRequest(request(), { ...env, STREAM_PROVIDER_ORDER: 'miami,boise,orlando' }, { upstream, seedCache: new Map(), providerTimeoutMs: 1000, log: () => {} });
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get('x-horizon-stream-server'), 'orlando');
+  assert(Date.now() - started < 900);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(aborted, 2);
 });
 
 test('an expired upstream seed is refreshed once after a 401 without executing remote code', async () => {
@@ -72,8 +159,10 @@ test('Automatic falls back from Miami to Boise and produces the unchanged privat
   const upstream = async (url, settings) => {
     const path = new URL(url).pathname;
     calls.push({ path, referer: settings.referer });
-    const body = path === '/seed' ? JSON.stringify({ seed, ttlMs: 30000 }) : path === '/miami/sources' ? 'unavailable' : path === '/boise/sources' ? encoded : '#EXTM3U\n#EXTINF:8,\nsegment.m4s\n#EXT-X-ENDLIST\n';
-    return { url, response: response(body, path === '/miami/sources' ? 404 : 200) };
+    const body = path === '/seed' ? JSON.stringify({ seed, ttlMs: 30000 }) : path === '/miami/sources' ? 'unavailable' : path === '/boise/sources' ? encoded : path.endsWith('.m4s') ? Buffer.from('000000106d6f6f660000000000000000', 'hex') : '#EXTM3U\n#EXTINF:8,\nsegment.m4s\n#EXT-X-ENDLIST\n';
+    const result = response(body, path === '/miami/sources' ? 404 : 200);
+    if (path.endsWith('.m4s')) result.headers['content-type'] = 'video/mp4';
+    return { url, response: result };
   };
   const result = await handleStreamRequest(request(), env, { upstream, log: () => {} });
   assert.equal(result.status, 200);
@@ -81,6 +170,7 @@ test('Automatic falls back from Miami to Boise and produces the unchanged privat
   assert.deepEqual(Object.keys(data), ['source']);
   const ticket = config.tickets.decode(new URL(data.source).searchParams.get('token'));
   assert.equal(ticket.provider, 'boise');
+  assert.equal(result.headers.get('x-horizon-stream-server'), 'boise');
   assert.equal(ticket.url, 'https://cdn.example/master.m3u8');
   assert(calls.every((call) => call.referer === 'https://www.movy.sx/'));
 });

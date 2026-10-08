@@ -218,3 +218,28 @@ model EntityMedia {
   @@index([entityId, kind, sortOrder])
   @@map("entity_media")
 }
+
+// Private dashboard history is independent of saved lists and timeline tracking.
+model PlaybackProgress {
+  key              String   @id @db.VarChar(100)
+  type             String   @db.VarChar(8)
+  tmdbId           Int      @map("tmdb_id")
+  season           Int      @default(0)
+  episode          Int      @default(0)
+  position         Float    @default(0)
+  duration         Float    @default(0)
+  title            String   @db.VarChar(240)
+  posterUrl        String?  @map("poster_url") @db.Text
+  backdropUrl      String?  @map("backdrop_url") @db.Text
+  completed        Boolean  @default(false)
+  playbackId       String   @map("playback_id") @db.VarChar(80)
+  sessionStartedAt DateTime @map("session_started_at") @db.Timestamptz(3)
+  recordedAt       DateTime @map("recorded_at") @db.Timestamptz(3)
+  sequence         Int      @default(0)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@index([type, updatedAt(sort: Desc)])
+  @@index([type, tmdbId, updatedAt(sort: Desc)])
+  @@map("playback_progress")
+}

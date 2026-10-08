@@ -17,6 +17,8 @@ import { useSpotifyConnected } from "@/lib/use-browser-preferences";
 import { ScrollRail } from "@/components/scroll-rail";
 import { filmSearch } from "@/lib/film-search";
 import { ArtistArtwork } from "@/components/artist-artwork";
+import { ContinueWatching } from "@/components/continue-watching";
+import historyStyles from "@/components/continue-watching.module.css";
 
 type Provider = { id: string; name: string; logo: string | null };
 type RecentSearch = { q: string; type: RadarType };
@@ -61,7 +63,7 @@ function CollectionRow({ state, row, returnTo, onViewAll, eager = false }: { sta
 function FilterSelect({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) {
   return <label className="discovery-select"><span className="sr-only">{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={14}/></label>;
 }
-export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) {
+export function ExploreFeed({ initialState, initialView = "browse" }: { initialState: DiscoveryState; initialView?: "browse" | "continue" }) {
   const [state, setState] = useState(initialState);
   const [search, setSearch] = useState(initialState.q);
   const [recent, setRecent] = useState<RecentSearch[]>([]);
@@ -71,19 +73,22 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   const [scrolled, setScrolled] = useState(false);
   const [providers, setProviders] = useState<{ key: string; items: Provider[] } | null>(null);
   const [randomLoading, setRandomLoading] = useState(false);
+  const [libraryView, setLibraryView] = useState(initialView);
   const searchRoot = useRef<HTMLFormElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const spotify = useSpotifyConnected();
   const spotifySearch = state.type === "MUSIC" && !!state.q && spotify;
+  const filmCategory = state.type === "MOVIE" || state.type === "SHOW";
+  const showHistory = filmCategory && libraryView === "continue";
   const key = collectionKey(state);
-  const result = useDiscoveryCollection(key);
+  const result = useDiscoveryCollection(key, !showHistory);
   const returnTo = `/discover?${discoveryQuery(state)}`;
   const providerKey = `${state.type}:${state.country}`;
   const providerList = providers?.key === providerKey ? providers.items : [];
   const category = mediaCategories.find((entry) => entry.value === state.type)!;
   const rows = discoveryRows(state.type);
-  const isExpanded = state.all || !!state.q;
+  const isExpanded = state.all || !!state.q || showHistory;
   const heroItems = featured?.key === key ? featured.items : (result.data?.items ?? []).filter((item) => (state.type !== "GAME" || item.backdropUrl) && (state.type !== "MOVIE" || item.sourceId !== "1599191"));
   const categorySearch = state.type === "MOVIE" || state.type === "SHOW" ? filmSearch(state.q, state.type) : null;
   const searchYear = state.year || categorySearch?.year;
@@ -97,22 +102,23 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     return () => controller.abort();
   }, [key, state.type, state.country, isExpanded]);
   useEffect(() => {
-    const onPop = () => { const next = discoveryState(new URLSearchParams(window.location.search)); setState(next); setSearch(next.q); };
+    const onPop = () => { const params = new URLSearchParams(window.location.search); const next = discoveryState(params); setState(next); setSearch(next.q); setLibraryView(params.get("view") === "continue" ? "continue" : "browse"); };
     const onScroll = () => setScrolled(window.scrollY > 48);
     window.addEventListener("popstate", onPop); window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => { window.removeEventListener("popstate", onPop); window.removeEventListener("scroll", onScroll); };
   }, []);
   useEffect(() => {
-    if (state.type !== "MOVIE" && state.type !== "SHOW") return;
+    if ((state.type !== "MOVIE" && state.type !== "SHOW") || showHistory) return;
     let cancelled = false;
     void fetch(`/api/discover/providers?${new URLSearchParams({ type: state.type, country: state.country })}`).then((response) => response.json()).then((data: { providers: Provider[] }) => { if (!cancelled) setProviders({ key: providerKey, items: data.providers }); }).catch(() => { if (!cancelled) setProviders({ key: providerKey, items: [] }); });
     return () => { cancelled = true; };
-  }, [providerKey, state.type, state.country]);
+  }, [providerKey, state.type, state.country, showHistory]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const query = search.trim().slice(0, 80);
       if (query !== state.q) {
+        setLibraryView("browse");
         const next = { ...state, q: query, genre: "", year: "", provider: "", sort: "popular", all: query.length > 0 };
         setState(next); window.history.replaceState(null, "", `/discover?${discoveryQuery(next)}`);
       }
@@ -135,9 +141,19 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     return () => window.removeEventListener("pointerdown", close);
   }, [searchOpen]);
   function navigate(next: DiscoveryState, scroll = true) {
+    setLibraryView("browse");
     setState(next); setSearch(next.q); setSearchOpen(false);
     window.history.pushState(null, "", `/discover?${discoveryQuery(next)}`);
     if (scroll) window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  function chooseView(view: "browse" | "continue") {
+    setLibraryView(view); setSearch(""); setSearchOpen(false);
+    const next = { ...defaultDiscovery, type: state.type, country: state.country };
+    setState(next);
+    const params = new URLSearchParams(discoveryQuery(next));
+    if (view === "continue") params.set("view", "continue");
+    window.history.pushState(null, "", `/discover?${params}`);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
   function chooseFilter(field: "genre" | "year" | "sort" | "provider" | "country", value: string) {
     navigate({ ...state, [field]: value, ...(field === "country" ? { provider: "" } : {}), all: true });
@@ -169,7 +185,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
   return <main className={`discovery-page ${isExpanded ? "discovery-expanded" : ""}`} data-type={state.type}>
     {isExpanded ? <CatalogAtmosphere/> : <div className="discovery-artwork-haze" style={image ? { backgroundImage: `url("${image}")` } : undefined} aria-hidden="true"/>}
     <header className={`discovery-header ${scrolled || isExpanded ? "header-solid" : ""}`}>
-      <nav className="discovery-categories" aria-label="Media categories">{mediaCategories.map((entry) => <button key={entry.value} type="button" aria-current={state.type === entry.value ? "page" : undefined} onClick={() => navigate({ ...defaultDiscovery, type: entry.value, country: state.country })}>{entry.label}</button>)}</nav>
+      <div className={historyStyles.categoryStack}><nav className="discovery-categories" aria-label="Media categories">{mediaCategories.map((entry) => <button key={entry.value} type="button" aria-current={state.type === entry.value ? "page" : undefined} onClick={() => navigate({ ...defaultDiscovery, type: entry.value, country: state.country })}>{entry.label}</button>)}</nav>{filmCategory && <nav className={historyStyles.tabs} aria-label={`${category.label} view`}><button type="button" aria-current={!showHistory ? "page" : undefined} onClick={() => chooseView("browse")}>Browse</button><button type="button" aria-current={showHistory ? "page" : undefined} onClick={() => chooseView("continue")}>Continue Watching</button></nav>}</div>
       <form ref={searchRoot} role="search" className="discovery-search" onSubmit={(event) => { event.preventDefault(); rememberSearch(); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }}>
         <Search size={17} aria-hidden="true"/><input ref={searchInput} value={search} onChange={(event) => setSearch(event.target.value)} onFocus={() => { setRecent(readRecent()); setSearchOpen(true); }} onKeyDown={(event) => { if (event.key === "Escape") { setSearchOpen(false); searchInput.current?.blur(); } if (event.key === "ArrowDown" && searchOpen) { event.preventDefault(); searchRoot.current?.querySelector<HTMLButtonElement>(".recent-search-item")?.focus(); } }} aria-label={`Search ${category.label.toLowerCase()}`} aria-controls="recent-searches" placeholder={`Search ${category.label.toLowerCase()}`} autoComplete="off" maxLength={80}/>{search && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setSearch(""); navigate({ ...defaultDiscovery, type: state.type, country: state.country }); searchInput.current?.focus(); }}><X size={15}/></button>}
         {searchOpen && <div className="recent-search-popup" id="recent-searches"><div className="recent-search-heading"><span>Recent searches</span>{recent.length > 0 && <button type="button" onClick={() => { try { localStorage.removeItem(recentKey); } catch {} setRecent([]); }}>Clear</button>}</div>{recent.length ? recent.filter((entry) => !search || entry.q.toLowerCase().includes(search.toLowerCase())).map((entry, index) => <button key={`${entry.type}:${entry.q}`} type="button" className="recent-search-item" onClick={() => navigate({ ...defaultDiscovery, type: entry.type, q: entry.q, country: state.country, all: true })} onKeyDown={(event) => { const buttons = searchRoot.current?.querySelectorAll<HTMLButtonElement>(".recent-search-item"); if (event.key === "ArrowDown") { event.preventDefault(); buttons?.[Math.min(index + 1, buttons.length - 1)]?.focus(); } if (event.key === "ArrowUp") { event.preventDefault(); if (!index) searchInput.current?.focus(); else buttons?.[index - 1]?.focus(); } if (event.key === "Escape") { searchInput.current?.focus(); setSearchOpen(false); } }}><Clock3 size={14}/><span>{entry.q}</span><small>{mediaCategories.find((type) => type.value === entry.type)?.label}</small><ArrowUpRightIcon/></button>) : <p>Your recent searches will appear here.</p>}</div>}
@@ -177,6 +193,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
     </header>
     {!isExpanded && <CinematicHero key={state.type} items={heroItems} market={state.country} returnTo={returnTo} onFeature={setImage}/>}
     <div className="discovery-content" id="discover-collections">
+      {showHistory ? <ContinueWatching key={state.type} type={state.type === "MOVIE" ? "movie" : "show"} returnTo={`${returnTo}&view=continue`} onBrowse={() => chooseView("browse")}/> : <>
       <div className="discovery-content-heading">{isExpanded ? <div><button type="button" className="collection-back" onClick={() => navigate({ ...defaultDiscovery, type: state.type, country: state.country })}><ArrowLeft size={15}/> Back to {category.label.toLowerCase()}</button><h1>{collectionTitle}</h1></div> : <div><h2>{category.label}</h2></div>}</div>
       <div className="discovery-filter-wrapper"><div className="discovery-filters" aria-label="Browse filters">
         <button type="button" className="random-title" title="Pick a random title" aria-label="Pick a random title" disabled={randomLoading || !result.data?.items.length} onClick={() => void randomTitle()}><Shuffle size={17} className={randomLoading ? "animate-pulse" : ""}/></button>
@@ -196,6 +213,7 @@ export function ExploreFeed({ initialState }: { initialState: DiscoveryState }) 
         {result.data?.hasMore && !spotifySearch && <div className="load-more-wrap"><button type="button" disabled={result.more} onClick={() => void result.loadMore()}>{result.more ? "Loading more…" : "Explore more"}<ArrowDownIcon/></button></div>}
       </section> : <div className="discovery-collections">{result.error && <div role="status" className="collection-message"><span>{result.error}</span><button type="button" onClick={result.retry}>Try again</button></div>}{rows.map((row, index) => <CollectionRow key={`${state.type}:${state.country}:${row.value}`} state={state} row={row} eager={index < 2} returnTo={returnTo} onViewAll={() => navigate({ ...state, genre: row.genre, sort: row.sort, all: true })}/>)}</div>}
 
+      </>}
     </div>
   </main>;
 }

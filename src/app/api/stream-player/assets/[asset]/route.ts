@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { NextRequest } from "next/server";
 import { PLAYER_CSS, PLAYER_SCRIPT } from "@/lib/stream-player";
+import { PLAYER_CORE_SCRIPT } from "@/lib/player-display";
 import { privateStreamSession } from "@/lib/stream-relay";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ass
   let type: string;
   if (asset === "player.css") { content = PLAYER_CSS; type = "text/css"; }
   else if (asset === "player.js") { content = PLAYER_SCRIPT; type = "text/javascript"; }
+  else if (asset === "player-core.js") { content = PLAYER_CORE_SCRIPT; type = "text/javascript"; }
   else if (Object.hasOwn(assets, asset)) {
     content = await assets[asset].read();
     type = assets[asset].type;

@@ -26,7 +26,7 @@ export function configuration(env = process.env) {
     ...env, AUTH_SECRET: env.STREAM_RELAY_TOKEN, STREAM_TICKET_SECRET: env.STREAM_TICKET_SECRET || env.STREAM_RELAY_TOKEN,
     // Prevent recursive delegation. Only the Vercel app sets RENDER_URL.
     RENDER_URL: '',
-    STREAM_PROVIDER_ORDER: env.STREAM_PROVIDER_ORDER || 'miami,boise,orlando',
+    STREAM_PROVIDER_ORDER: env.STREAM_PROVIDER_ORDER || 'miami,boise,orlando,paris,munich',
     STREAM_VIDLINK_KEY: env.STREAM_VIDLINK_KEY || LEGACY_VIDLINK_KEY,
   } };
 }

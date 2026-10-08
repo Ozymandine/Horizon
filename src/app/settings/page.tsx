@@ -1,5 +1,6 @@
 import { BackgroundSettings } from "@/components/background-settings";
 import { SpotifySettings } from "@/components/spotify-settings";
+import { PlaybackSettings } from "@/components/playback-settings";
 import { safeReturnTo } from "@/lib/return-to";
 import Image from "next/image";
 
@@ -12,6 +13,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
       <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">Your preferences and connected services stay saved in this browser.</p>
       <div className="glass mt-9 space-y-8 rounded-3xl p-5 sm:p-8">
         <SpotifySettings returnTo={returnTo} />
+        <div className="border-t border-white/10 pt-8"><PlaybackSettings /></div>
         <div className="border-t border-white/10 pt-8"><BackgroundSettings /></div>
         <section className="border-t border-white/10 pt-6" aria-labelledby="credits-heading">
           <h2 id="credits-heading" className="text-base font-semibold text-white">Credits</h2>

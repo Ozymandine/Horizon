@@ -38,9 +38,9 @@ function vidcoreFixture({ badMirror = false, wrongTitle = false, hostileHandshak
       const text = JSON.parse(options.body).text;
       const result = text === 'encrypted-catalog' ? [{ name: 'Advert', data: 'pixel' }, { name: 'Prime', data: 'prime-token' }, { name: 'Supreme', data: 'supreme-token' }] : { tmdbId: wrongTitle ? 999 : 603, url: `https://cdn.example/${text === 'encrypted-supreme' ? 'supreme' : 'prime'}/master.m3u8?secret=private` };
       body = JSON.stringify({ status: 200, result });
-    } else if (parsed.hostname === 'cdn.example') body = badMirror && parsed.pathname.includes('supreme') ? '<html>blocked</html>' : parsed.pathname.endsWith('master.m3u8') ? master : media;
+    } else if (parsed.hostname === 'cdn.example') body = badMirror && parsed.pathname.includes('supreme') ? '<html>blocked</html>' : parsed.pathname.endsWith('master.m3u8') ? master : parsed.pathname.endsWith('.m4s') ? Buffer.from('000000106d6f6f660000000000000000', 'hex') : media;
     else body = '{}';
-    return { url, response: response(body) };
+    return { url, response: response(body, 200, parsed.pathname.endsWith('.m4s') ? 'video/mp4' : 'application/json') };
   };
   return { calls, upstream };
 }
@@ -71,12 +71,12 @@ test('Embed.su nested base64 configurations ignore its advertisement URL', () =>
 });
 
 test('custom source selection and provider order reject unknown or duplicated fallback names', () => {
-  assert.deepEqual(providerOrder({}), ['miami', 'boise', 'orlando']);
+  assert.deepEqual(providerOrder({}), ['miami', 'boise', 'orlando', 'paris', 'munich']);
   assert.deepEqual(providerOrder({ STREAM_MOVIE_EXTRACTOR_URL: 'https://example.org' }), ['custom']);
   for (const value of ['vidsrc,vidsrc', 'evil', 'custom', 'vidsrc,']) assert.throws(() => providerOrder({ STREAM_PROVIDER_ORDER: value }), /order/);
 });
 
-test('a blocked VidSrc falls through to the VidCore handshake, preflights HLS, and stops before later providers', async () => {
+test('Automatic checks mirrors concurrently and uses the verified VidCore handshake', async () => {
   const fixture = vidcoreFixture(), logs = [];
   const result = await handleStreamRequest(request(), env, { upstream: fixture.upstream, log: (value) => logs.push(value) });
   assert.equal(result.status, 200, JSON.stringify({ logs, paths: fixture.calls.map((call) => new URL(call.url).pathname) }));
@@ -86,9 +86,9 @@ test('a blocked VidSrc falls through to the VidCore handshake, preflights HLS, a
   assert.equal(ticket.provider, 'vidcore');
   assert(ticket.url.includes('/supreme/'));
   assert(fixture.calls.some((call) => call.url.includes('/1080/index.m3u8')));
-  assert(!fixture.calls.some((call) => /vidlink|embed\.su|pixel|prime-token/.test(call.url)));
+  assert(!fixture.calls.some((call) => /pixel|prime-token/.test(call.url)));
   assert(!JSON.stringify(logs).includes('secret'));
-  const blocked = JSON.parse(logs[0]);
+  const blocked = logs.map((entry) => JSON.parse(entry)).find((entry) => entry.provider === 'vidsrc');
   assert.equal(blocked.upstreamHost, 'vidsrc.to');
   assert.equal(blocked.upstreamStatus, 403);
   assert(!data.source.includes('cdn.example'));
@@ -138,7 +138,7 @@ test('a timed out provider is cancelled and a later provider can still resolve',
   const result = await handleStreamRequest(request(), { ...env, STREAM_PROVIDER_ORDER: 'vidsrc,embedsu' }, {
     providerTimeoutMs: 30, log: () => {}, upstream: async (url, _config, { signal }) => {
       if (url.includes('vidsrc.to')) await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
-      return { url, response: response(url.includes('embed.su') ? '{"source":"https://cdn.example/master.m3u8"}' : url.endsWith('master.m3u8') ? master : media) };
+      return { url, response: response(url.includes('embed.su') ? '{"source":"https://cdn.example/master.m3u8"}' : url.endsWith('master.m3u8') ? master : url.endsWith('.m4s') ? Buffer.from('000000106d6f6f660000000000000000', 'hex') : media, 200, url.endsWith('.m4s') ? 'video/mp4' : 'application/json') };
     },
   });
   assert.equal(result.status, 200);

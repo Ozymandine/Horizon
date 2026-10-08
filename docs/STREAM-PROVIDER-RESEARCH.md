@@ -1,6 +1,6 @@
 # Public streaming provider research
 
-Checked on October 5, 2026. The initial investigation was local; subsequent Miami/Boise/Orlando integration checks also passed from Vercel. Render has not been deployed or tested.
+Checked on October 5 and October 7, 2026. The initial investigation was local; subsequent Miami/Boise/Orlando integration checks also passed from Vercel. October 7 added local Paris/Munich movie and Munich episode preflight checks. Render has not been deployed or tested.
 
 ## Confirmed Movy connection
 
@@ -26,15 +26,19 @@ The minimum TMDB movie/episode parameters worked for Miami and Boise. Title, yea
 | Movie 1080p playlist | Valid complete HLS playlist, approximately 136 minutes; initialization data and two video segments fetched |
 | TV episode 1080p playlist | Valid complete HLS playlist, approximately 62 minutes; initialization data and two video segments fetched |
 | Orlando, movie TMDB 603 | Decoded HLS on a separate exact worker hostname; complete playlist and three valid MPEG-TS video segments fetched locally |
+| Paris, movie TMDB 603, October 7 | Complete HLS and three valid MPEG-TS segments from Orlando's existing exact worker hostname |
+| Munich, movie TMDB 603, October 7 | Complete HLS and three valid MPEG-TS segments from independently checked `sun.paleoak.top` |
+| Munich, TMDB 1399 S1E1, October 7 | Updated resolver preflight checked HLS and initial media successfully |
+| Berlin, movie TMDB 603, October 7 | Source request timed out; excluded |
 | Phoenix / Portland / Tampa / Dallas / Vegas | Source, playlist, rendition or timeout checks failed; these routes are excluded from the default selector |
 
-Miami/Boise media came from `moon.zenoak.top`. Orlando's exact `dawn-dew-dd4f.barbaraadamse463.workers.dev` hostname was independently validated and added to the media host list. Signed URLs were kept in ignored research files and are not documented here. One initial movie playlist fetch reset its connection; a subsequent fetch succeeded. Long playback and subtitle behavior remain unverified.
+Miami/Boise media came from `moon.zenoak.top`. Orlando/Paris's exact `dawn-dew-dd4f.barbaraadamse463.workers.dev` hostname and Munich's `sun.paleoak.top` were independently checked with pinned public DNS, verified TLS, complete playlists, and real segments, then added to the media host list. The same CDN can behave differently for different source routes; Munich's October 7 result does not establish that rejected Phoenix/Portland routes work. Signed URLs were kept in ignored research files and are not documented here. One initial movie playlist fetch reset its connection; a subsequent fetch succeeded. Long playback and subtitle behavior remain unverified.
 
 ## Horizon integration path
 
 Use a provider-specific Node adapter in the existing resolver, followed by the existing HLS validation, signed playback ticket, and same-origin relay. The frontend should continue receiving `{ "source": "https://<horizon>/api/proxy-stream?token=..." }` and use its native player.
 
-Horizon now implements this adapter in `lib/stream-movy.mjs` and `lib/stream-providers.mjs`. The default selector offers Automatic, Miami, Boise and Orlando. Manual selection uses the chosen server; Automatic follows the configured order. Browser code preserves position when switching and retrying. `/api/stream/servers` reflects the direct resolver's or optional Render service's configuration.
+Horizon now implements this adapter in `lib/stream-movy.mjs` and `lib/stream-providers.mjs`. The default selector offers Automatic, Miami, Boise, Orlando, Paris and Munich. Manual selection uses the chosen server. Automatic uses a pool of at most three checks, validates initial media, and tries every enabled server before returning unavailable. Browser code preserves position when switching and retrying. `/api/stream/servers` reflects the direct resolver's or optional Render service's configuration; `X-Horizon-Stream-Server` reports a successful selection without changing `{source}` JSON.
 
 Vercel checks successfully resolved Miami and Orlando movies and a Boise episode, then fetched two video segments and initialization data where present through Horizon's authenticated relay. Local browser checks decoded the movie at 1920×1080 and advanced real playback with zero iframes and external resource origins. These checks do not guarantee every title, geographic region, or future provider availability.
 

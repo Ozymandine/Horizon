@@ -90,6 +90,26 @@ export type TmdbShowDetails = TmdbShow & {
   images?: { logos: { file_path: string; iso_639_1: string | null }[]; backdrops?: { file_path: string }[] };
   recommendations?: TmdbList<TmdbShow>;
   genres?: { id: number; name: string }[];
+  content_ratings?: { results: { iso_3166_1: string; rating: string }[] };
+};
+
+export type TmdbEpisode = {
+  id: number;
+  episode_number: number;
+  season_number: number;
+  name: string;
+  overview: string;
+  still_path: string | null;
+  runtime: number | null;
+  air_date: string | null;
+  vote_average?: number;
+};
+
+export type TmdbSeasonDetails = {
+  id: number;
+  season_number: number;
+  name: string;
+  episodes: TmdbEpisode[];
 };
 
 export type TmdbList<T> = { results: T[]; total_pages?: number };
@@ -192,10 +212,18 @@ export async function getMovieDetails(id: number): Promise<TmdbMovieDetails | nu
 export async function getShowDetails(id: number): Promise<TmdbShowDetails | null> {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   try {
-    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos,images,recommendations", include_image_language: "en,null" });
+    return await tmdbFetch<TmdbShowDetails>(`/tv/${id}`, { append_to_response: "credits,videos,images,recommendations,content_ratings", include_image_language: "en,null" });
   } catch {
     return null;
   }
+}
+
+/** Season data shares the bounded, authenticated TMDB fetch and its one-hour server cache. */
+export async function getShowSeason(id: number, season: number): Promise<TmdbSeasonDetails> {
+  if (!Number.isSafeInteger(id) || id < 1 || id > 2_147_483_647 || !Number.isSafeInteger(season) || season < 0 || season > 1000) {
+    throw new RangeError("Choose a valid series and season.");
+  }
+  return tmdbFetch<TmdbSeasonDetails>(`/tv/${id}/season/${season}`);
 }
 
 export async function getExploreMovies(options: { genreId?: number; year?: number; sort?: "popular" | "rated"; page?: number } = {}): Promise<TmdbMovie[]> {

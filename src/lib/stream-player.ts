@@ -1,132 +1,36 @@
-// A standalone document keeps the playback CSP strict without weakening it for Next's runtime or trailers.
-export const PLAYER_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; font-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'";
+export { PLAYER_SCRIPT } from "./stream-player-script.mjs";
 
+// Provider scripts, frames and connections are excluded from the player document.
+export const PLAYER_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://image.tmdb.org; connect-src 'self' blob:; media-src 'self' blob:; font-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'";
+const icons: Record<string, string> = {
+  back: '<path d="m15 5-7 7 7 7M8 12h13"/>', play: '<path fill="currentColor" stroke="none" d="m7 4 14 8-14 8z"/>',
+  rewind: '<path d="M4 8a9 9 0 1 1-1 8M4 3v6h6"/><text x="12" y="16" fill="currentColor" stroke="none" text-anchor="middle" font-size="9" font-weight="700">10</text>',
+  forward: '<path d="M20 8a9 9 0 1 0 1 8M20 3v6h-6"/><text x="12" y="16" fill="currentColor" stroke="none" text-anchor="middle" font-size="9" font-weight="700">10</text>',
+  volume: '<path d="M3 9h4l5-4v14l-5-4H3zM16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
+  pip: '<rect x="2" y="4" width="20" height="16" rx="2"/><path fill="currentColor" stroke="none" d="M12 11h8v6h-8z"/>',
+  server: '<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6h1m-1 11h1m5-11h5m-5 11h5"/>',
+  captions: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10H6v4h2m10-4h-2v4h2"/>',
+  settings: '<path d="m10 2-.7 3-2 .9-2.8-.8L2 9l2.1 2v2L2 15l2.5 3.9 2.8-.8 2 .9.7 3h4l.7-3 2-.9 2.8.8L22 15l-2.1-2v-2L22 9l-2.5-3.9-2.8.8-2-.9L14 2z"/><circle cx="12" cy="12" r="3"/>',
+  fullscreen: '<path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/>',
+  cast: '<path d="M3 8V4h18v16h-8M2 20h1m-1-5a5 5 0 0 1 5 5m-5-10a10 10 0 0 1 10 10"/>',
+  episodes: '<rect x="2" y="7" width="20" height="15" rx="2"/><path d="M5 3h14M7 0h10m-6 12 6 3-6 3z"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>',
+};
+const svg = (name: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[name]}</svg>`;
+const control = (id: string, label: string, icon: string, attributes = "") => `<button type="button" id="${id}" class="control" aria-label="${label}" title="${label}" ${attributes}>${svg(icon)}</button>`;
 export const PLAYER_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="${PLAYER_CSP.replace("; frame-ancestors 'none'", "")}">
-<meta name="referrer" content="no-referrer"><title>Play · Horizon</title>
-<link rel="stylesheet" href="/api/stream-player/assets/plyr.css"><link rel="stylesheet" href="/api/stream-player/assets/player.css?v=2">
-<script defer src="/api/stream-player/assets/plyr.min.js"></script><script defer src="/api/stream-player/assets/hls.min.js"></script><script defer src="/api/stream-player/assets/player.js?v=3"></script>
-</head><body><main><header><a id="back" href="/discover">← Details</a><span>Horizon</span></header>
-<h1 id="title">Play</h1><div class="playback-options"><label>Server <select id="server" aria-label="Playback server"><option value="auto">Automatic</option></select></label><div id="episode" hidden><label>Season <input id="season" type="number" min="0" max="1000" value="1"></label><label>Episode <input id="episode-number" type="number" min="1" max="10000" value="1"></label><button id="change-episode" type="button">Play episode</button></div></div>
-<div class="player-shell"><video id="player" controls playsinline preload="metadata"></video></div>
-<p id="status" role="status" aria-live="polite">Finding a stream…</p><button id="retry" type="button" hidden>Try again</button>
+<meta http-equiv="Content-Security-Policy" content="${PLAYER_CSP.replace("; frame-ancestors 'none'", "")}"><meta name="referrer" content="no-referrer"><title>Play · Horizon</title>
+<link rel="stylesheet" href="/api/stream-player/assets/player.css?v=4"><script defer src="/api/stream-player/assets/hls.min.js"></script><script defer src="/api/stream-player/assets/player-core.js?v=1"></script><script defer src="/api/stream-player/assets/player.js?v=4"></script>
+</head><body><main id="player-page" class="player-page" data-state="loading">
+<img id="backdrop" class="backdrop" alt="" hidden><video id="player" controls playsinline preload="auto" x-webkit-airplay="allow"></video><div class="screen-shade" aria-hidden="true"></div>
+<header class="top-bar chrome"><a id="back" class="control" href="/discover" aria-label="Back to details" title="Back to details">${svg("back")}</a><h1 id="title">Play</h1>${control("cast", "Cast to a screen", "cast")}</header>
+<section id="pause-info" class="pause-info" aria-label="Now watching"><img id="title-logo" alt="" hidden><h2 id="info-title">Play</h2><p id="film-meta" class="film-meta"></p><p id="episode-title" class="episode-title" hidden></p><p id="overview" class="overview"></p></section>
+<div id="notice" class="notice" role="status" aria-live="polite"><span id="status">Finding a stream…</span><button id="retry" type="button" hidden>Try again</button></div>
+<footer id="controls" class="bottom-bar chrome"><label class="seek-label"><span class="sr-only">Playback position</span><input id="seek" type="range" min="0" max="1" step=".1" value="0" disabled></label><div class="control-row"><div class="left-controls">${control("play", "Play", "play")}${control("rewind", "Rewind 10 seconds", "rewind")}${control("forward", "Skip 10 seconds", "forward")}<div class="volume-controls">${control("mute", "Mute", "volume")}<input id="volume" type="range" min="0" max="1" step=".05" value="1" aria-label="Volume"></div><output id="time" aria-label="Elapsed and total time">00:00 / 00:00</output></div><div class="right-controls">${control("episodes-button", "Browse episodes", "episodes", 'hidden aria-expanded="false" aria-controls="episodes-panel"')}${control("pip", "Picture in picture", "pip")}${control("servers-button", "Change server", "server", 'aria-expanded="false" aria-controls="servers-panel"')}${control("subtitles-button", "Subtitles", "captions", 'aria-expanded="false" aria-controls="subtitles-panel"')}${control("settings-button", "Playback settings", "settings", 'aria-expanded="false" aria-controls="settings-panel"')}${control("fullscreen", "Enter fullscreen", "fullscreen")}</div></div></footer>
+<section id="servers-panel" class="panel compact-panel" role="dialog" aria-label="Playback servers" hidden><div class="panel-heading"><h2>Servers</h2><button class="panel-close" type="button" aria-label="Close servers">${svg("close")}</button></div><label>Choose a server<select id="server"><option value="auto">Automatic</option></select></label><p id="active-server" class="hint">Automatic checks available servers.</p></section>
+<section id="subtitles-panel" class="panel compact-panel" role="dialog" aria-label="Subtitle options" hidden><div class="panel-heading"><h2>Subtitles</h2><button class="panel-close" type="button" aria-label="Close subtitles">${svg("close")}</button></div><label>Subtitle track<select id="subtitle-track"><option value="off">Off</option></select></label><p id="subtitle-note" class="hint">Available tracks appear when a stream provides them.</p><label class="file-button">Load a subtitle file<input id="subtitle-file" type="file" accept=".vtt,.srt,text/vtt"></label></section>
+<section id="settings-panel" class="panel settings-panel" role="dialog" aria-label="Playback settings" hidden><div class="panel-heading"><h2>Playback settings</h2><button class="panel-close" type="button" aria-label="Close settings">${svg("close")}</button></div><div class="settings-grid"><label>Quality<select id="quality"><option value="-1">Automatic</option></select></label><label>Audio<select id="audio-track"><option value="default">Default</option></select></label><label>Speed<select id="speed">${[.5, .75, 1, 1.25, 1.5, 2].map((speed) => `<option value="${speed}" ${speed === 1 ? "selected" : ""}>${speed}×</option>`).join("")}</select></label><label>Sleep timer<select id="sleep"><option value="0">Off</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label></div><div class="settings-section"><h3>Picture</h3><label>Fit to screen<select id="fit"><option value="fit">Fit — whole picture</option><option value="fill">Fill — crop to screen</option><option value="auto">Auto crop — remove black bars</option></select></label><label class="range-label">Extra zoom <output id="zoom-value">1.00×</output><input id="zoom" type="range" min="1" max="2.5" step=".05" value="1"></label><p id="screen-info" class="hint"></p><p id="crop-note" class="hint">Fill crops the picture edges. Auto crop checks for consistent black borders.</p></div><div class="settings-section"><label class="range-label">Subtitle size <output id="subtitle-size-value">100%</output><input id="subtitle-size" type="range" min="75" max="175" step="5" value="100"></label></div><button id="restart" class="text-button" type="button">Restart from beginning</button></section>
+<section id="episodes-panel" class="panel episodes-panel" role="dialog" aria-label="Episodes" hidden><div class="panel-heading"><h2>Episodes</h2><label class="season-label"><span class="sr-only">Season</span><select id="season"><option value="1">Season 1</option></select></label><button class="panel-close" type="button" aria-label="Close episodes">${svg("close")}</button></div><p id="episodes-status" class="hint" role="status"></p><div id="episode-list" class="episode-list"></div></section>
 </main></body></html>`;
 
-export const PLAYER_CSS = `:root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;--plyr-color-main:#fff;--plyr-video-control-color-hover:#15191c;--plyr-menu-color:#182027;--plyr-menu-background:#fff;--plyr-range-fill-background:#fff;--plyr-video-background:#080c10}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#203940,#0b1118 65%);color:#fff;min-height:100svh}main{max-width:1200px;margin:0 auto;padding:28px 24px 44px}header{display:flex;justify-content:space-between;align-items:center;color:#bac9ce;margin-bottom:28px}a{color:inherit;text-decoration:none}h1{font-size:clamp(22px,4vw,36px);letter-spacing:-.03em;margin:0 0 24px}.player-shell{overflow:hidden;border-radius:20px;background:#080c10;aspect-ratio:16/9;max-height:calc(100svh - 210px);min-height:180px;border:1px solid #ffffff20}video,.plyr{width:100%;height:100%}.plyr__video-wrapper{height:100%}video{object-fit:contain}.plyr__control--overlaid{background:#fff;color:#15191c}.plyr__control--overlaid:hover{background:#e5eef0;color:#15191c}#status{font-size:14px;color:#c0cdd1;line-height:1.6;overflow-wrap:anywhere}.playback-options,#episode{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.playback-options{margin-bottom:20px}[hidden],#episode[hidden]{display:none!important}label{font-size:13px;color:#bac9ce}input,select{padding:8px;margin-left:6px;border:1px solid #ffffff30;border-radius:8px;background:#111b21;color:#fff}input{width:68px}select{min-width:140px}button{border:1px solid #ffffff30;border-radius:999px;padding:10px 18px;background:#ffffff0c;color:#fff;cursor:pointer}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid white;outline-offset:4px}@media(max-width:640px){main{padding:20px 14px 30px}header{margin-bottom:22px}.player-shell{border-radius:12px}.playback-options{gap:16px}#episode{gap:10px}}`;
-
-export const PLAYER_SCRIPT = String.raw`(() => {
-  'use strict';
-  const params = new URLSearchParams(location.search);
-  const title = document.getElementById('title');
-  title.textContent = params.get('title') || 'Play';
-  document.title = title.textContent + ' · Horizon';
-  const type = params.get('type');
-  const tmdbId = Number(params.get('tmdbId'));
-  const back = params.get('returnTo');
-  if (back && /^\/(movies|shows)\/\d+(?:\?|$)/.test(back)) document.getElementById('back').href = back;
-  const video = document.getElementById('player');
-  const status = document.getElementById('status');
-  const retry = document.getElementById('retry');
-  const season = document.getElementById('season');
-  const episode = document.getElementById('episode-number');
-  const server = document.getElementById('server');
-  document.getElementById('episode').hidden = type !== 'show';
-  const player = new Plyr(video, {
-    iconUrl: '/api/stream-player/assets/plyr.svg', loadSprite: false,
-    storage: { enabled: false }, ads: { enabled: false }, autoplay: false,
-    controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'],
-    settings: ['speed'], ratio: '16:9',
-  });
-  let hls;
-  let controller;
-  let generation = 0;
-  let seekHandler;
-  let savedPosition = 0;
-  let disposed = false;
-  const discoveryController = new AbortController();
-  function fail(message) { status.textContent = message; retry.hidden = false; }
-  // The authenticated website API reads process.env.RENDER_URL server-side.
-  // Keep the relay credential out of browser code and every HLS request on this origin.
-  async function resolveSource(payload, signal) {
-    const response = await fetch('/api/stream', {
-      method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal,
-    });
-    let data;
-    try { data = await response.json(); }
-    catch { throw new Error('The playback service is unavailable. Try again shortly.'); }
-    if (!response.ok) throw new Error(typeof data?.error === 'string' ? data.error : 'This stream is unavailable.');
-    if (!data || Object.keys(data).length !== 1 || typeof data.source !== 'string') throw new Error('The resolver returned an invalid playback link.');
-    const source = new URL(data.source, location.origin);
-    if (source.origin !== location.origin || source.pathname !== '/api/proxy-stream' || source.hash || source.username || source.password || [...source.searchParams.keys()].length !== 1 || !/^[A-Za-z0-9_-]{1,12000}$/.test(source.searchParams.get('token') || '')) throw new Error('The resolver returned an invalid playback link.');
-    return source;
-  }
-  async function load(resume = false) {
-    const current = ++generation;
-    if (!resume) savedPosition = 0;
-    else if (video.readyState >= 1 && Number.isFinite(video.currentTime)) savedPosition = video.currentTime;
-    // Preserve the last position even if a failed switch has already cleared src.
-    const position = savedPosition;
-    controller?.abort();
-    controller = new AbortController();
-    hls?.destroy();
-    hls = null;
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-    if (seekHandler) video.removeEventListener('loadedmetadata', seekHandler);
-    seekHandler = null;
-    status.textContent = 'Finding a stream…';
-    retry.hidden = true;
-    try {
-      const payload = { tmdbId, type };
-      if (server.value && server.value !== 'auto') payload.server = server.value;
-      if (type === 'show') { payload.season = Number(season.value); payload.episode = Number(episode.value); }
-      const source = await resolveSource(payload, controller.signal);
-      if (current !== generation) return;
-      seekHandler = () => {
-        if (current !== generation) return;
-        if (position > 0 && Number.isFinite(video.duration)) video.currentTime = Math.min(position, Math.max(0, video.duration - 1));
-        // Browsers can require a second tap after navigating from the details page.
-        void Promise.resolve(video.play()).catch(() => { if (current === generation) status.textContent = 'Ready to play'; });
-      };
-      video.addEventListener('loadedmetadata', seekHandler, { once: true });
-      if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: false, startPosition: position > 0 ? position : -1, maxBufferLength: 30, maxMaxBufferLength: 60 });
-        hls.on(Hls.Events.ERROR, (_event, event) => { if (current === generation && event.fatal) fail('Playback stopped. Try another server or refresh the stream.'); });
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { if (current === generation) status.textContent = 'Ready to play'; });
-        hls.loadSource(source.href);
-        hls.attachMedia(video);
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) video.src = source.href;
-      else throw new Error('This browser does not support HLS playback.');
-    } catch (error) { if (error.name !== 'AbortError' && current === generation) fail(error.message); }
-  }
-  video.addEventListener('loadedmetadata', () => { status.textContent = 'Ready to play'; });
-  video.addEventListener('playing', () => { status.textContent = ''; retry.hidden = true; });
-  retry.addEventListener('click', () => load(true));
-  server.addEventListener('change', () => load(true));
-  document.getElementById('change-episode').addEventListener('click', () => load(false));
-  window.addEventListener('pagehide', () => { disposed = true; generation++; discoveryController.abort(); controller?.abort(); hls?.destroy(); player.destroy(); });
-  // Load the configured server list as data, never provider HTML or scripts.
-  async function start() {
-    server.disabled = true;
-    const discoveryTimeout = setTimeout(() => discoveryController.abort(), 10000);
-    try {
-      const response = await fetch('/api/stream/servers', { credentials: 'same-origin', cache: 'no-store', signal: discoveryController.signal });
-      const data = await response.json();
-      if (response.ok && Array.isArray(data.servers) && data.servers.length <= 32) {
-        for (const item of data.servers) {
-          if (!/^[a-z]{2,16}$/.test(item?.id || '') || typeof item.name !== 'string' || item.name.length > 40) continue;
-          const option = document.createElement('option');
-          option.value = item.id;
-          option.textContent = item.name;
-          server.appendChild(option);
-        }
-      }
-    } catch { /* Automatic playback can still work if server discovery fails. */ }
-    finally { clearTimeout(discoveryTimeout); server.disabled = false; }
-    if (!disposed) await load();
-  }
-  void start();
-})();`;
+export const PLAYER_CSS = `:root{color-scheme:dark;font-family:Arial,Helvetica,sans-serif;--accent:#a9d2be;--subtitle-size:100%}*{box-sizing:border-box}body{margin:0;background:#050708;color:#fff;overflow:hidden}button,input,select{font:inherit}button,a,input,select{touch-action:manipulation}button{cursor:pointer}button:disabled,input:disabled{cursor:default;opacity:.4}[hidden]{display:none!important}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}.player-page{position:fixed;inset:0;width:100%;height:100dvh;overflow:hidden;background:#050708}.player-page.idle{cursor:none}#player,.backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}#player{background:transparent;transform-origin:center;opacity:0}.player-page[data-ready=true] #player{opacity:1}.backdrop{object-fit:cover;opacity:.4}.player-page[data-ready=true] .backdrop{opacity:0}video::cue{font-size:var(--subtitle-size);background:#000b;color:#fff}.screen-shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,#0008,transparent 25%,transparent 45%,#0008 85%,#000c);transition:opacity .25s}.chrome{position:absolute;z-index:3;transition:opacity .25s,visibility .25s}.top-bar{top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:max(16px,env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) 22px max(22px,env(safe-area-inset-left));background:linear-gradient(#0009,transparent)}h1{font-size:clamp(14px,1.4vw,19px);font-weight:500;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;text-align:center}.control{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:8px;border:0;border-radius:10px;color:white;background:transparent;flex-shrink:0;text-decoration:none}.control svg,.panel-close svg{width:24px;height:24px}.control:hover,.control[aria-expanded=true]{background:#ffffff1a}.control:focus-visible,.panel-close:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid white;outline-offset:3px}.bottom-bar{left:0;right:0;bottom:0;padding:16px max(24px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left));background:linear-gradient(transparent,#000e)}.seek-label{display:block;padding:8px 0 13px}.seek-label input{display:block;width:100%;height:4px;margin:0;accent-color:var(--accent);cursor:pointer}.control-row,.left-controls,.right-controls,.volume-controls{display:flex;align-items:center;gap:8px}.control-row{justify-content:space-between;gap:18px}.volume-controls{gap:2px}.volume-controls input{width:74px;accent-color:#fff;height:4px}#time{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:4px;color:#e6e9e8}.pause-info{position:absolute;left:clamp(24px,3vw,54px);bottom:clamp(140px,20vh,220px);z-index:2;max-width:min(730px,58vw);pointer-events:none;transition:opacity .25s,visibility .25s}.pause-info img{display:block;max-width:min(420px,40vw);max-height:150px;object-fit:contain;object-position:left;margin-bottom:22px}.pause-info h2{font-size:clamp(26px,4.2vw,58px);letter-spacing:-.04em;line-height:1.1;margin:0 0 18px}.film-meta{display:flex;gap:14px;align-items:center;font-size:14px;color:#ddd;font-weight:600;margin:0 0 14px}.overview{font-size:14px;line-height:1.65;color:#d7dcda;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:0}.episode-title{font-size:17px;font-weight:600;margin:0 0 12px}.player-page[data-state=playing] .pause-info{visibility:hidden;opacity:0}.player-page.idle .chrome,.player-page.idle .screen-shade{opacity:0;visibility:hidden}.notice{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;display:flex;flex-direction:column;align-items:center;gap:16px;max-width:min(520px,85vw);text-align:center;padding:18px 24px;border-radius:16px;background:#091014dc;font-size:14px;line-height:1.6}.notice:has(#status:empty){display:none}.notice button,.text-button{color:white;background:#ffffff15;border:1px solid #ffffff25;border-radius:999px;padding:10px 18px}.panel{position:absolute;right:max(24px,env(safe-area-inset-right));bottom:104px;z-index:5;border:1px solid #ffffff24;border-radius:22px;background:#192421ee;backdrop-filter:blur(24px);box-shadow:0 20px 80px #0006;padding:22px;width:390px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 190px);overflow:auto;scrollbar-width:thin}.panel-heading{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:20px}.panel h2{font-size:18px;margin:0}.panel-close{border:0;background:transparent;color:white;width:32px;height:32px;padding:4px;cursor:pointer;flex-shrink:0}.panel label{display:block;font-size:12px;font-weight:600;color:#bac5c0}.panel select{display:block;width:100%;margin-top:8px;border:1px solid #ffffff24;border-radius:10px;background:#26332f;color:#fff;padding:12px 10px;font-size:15px}.hint{font-size:12px;line-height:1.6;color:#a8b8b0;margin:12px 0 0}.file-button{margin-top:20px;display:block!important;font-size:14px!important;color:#fff!important}.file-button input{display:block;margin-top:10px;max-width:100%;font-size:12px}.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.settings-grid>label{background:#ffffff08;border:1px solid #ffffff0c;border-radius:13px;padding:12px}.settings-grid select{border:0;background:transparent;padding:5px 0 0;font-size:17px;font-weight:600}.settings-section{border-top:1px solid #ffffff16;margin-top:20px;padding-top:20px}.settings-section h3{font-size:14px;margin:0 0 15px}.range-label{margin-top:17px}.range-label output{float:right;color:white}.range-label input{width:100%;accent-color:white;margin:12px 0 0}.text-button{margin-top:20px;width:100%;font-size:13px}.episodes-panel{left:24px;right:24px;width:auto;max-width:none;overflow:hidden}.episodes-panel .panel-heading{margin-bottom:16px}.season-label{margin-left:auto}.season-label select{margin:0;width:150px;padding:8px 10px}.episode-list{display:flex;gap:16px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity;scrollbar-width:thin}.episode-card{flex:0 0 235px;scroll-snap-align:start;color:#fff;text-align:left;border:1px solid #ffffff14;border-radius:12px;overflow:hidden;background:#ffffff08;padding:0}.episode-card[aria-current=true]{outline:1px solid #bad8c6;background:#ffffff15}.episode-image{position:relative;aspect-ratio:16/9;background:#ffffff08;display:block}.episode-image img{width:100%;height:100%;object-fit:cover}.episode-badge{position:absolute;top:8px;left:8px;background:#0009;border-radius:6px;padding:4px 6px;font-size:10px}.episode-runtime{position:absolute;bottom:8px;right:8px;background:#0009;border-radius:6px;padding:4px 6px;font-size:10px}.episode-copy{display:block;padding:12px}.episode-copy strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;margin-bottom:6px}.episode-copy p{font-size:12px;line-height:1.5;color:#adbcb5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}.episode-progress{height:3px;background:#ffffff20}.episode-progress i{display:block;height:100%;background:var(--accent)}@media(max-width:740px){.top-bar{padding:12px}.top-bar .control{width:36px;height:36px}h1{max-width:65%;font-size:13px}.bottom-bar{padding:10px 12px max(10px,env(safe-area-inset-bottom))}.control-row{gap:6px;flex-wrap:wrap}.left-controls,.right-controls{gap:2px}.right-controls{margin-left:auto}.control{width:34px;height:36px;padding:7px}.control svg{width:21px;height:21px}.volume-controls input{display:none}#time{font-size:11px;margin-left:2px}.pause-info{left:22px;bottom:155px;max-width:calc(100vw - 44px)}.pause-info img{max-width:65vw;max-height:105px;margin-bottom:15px}.pause-info h2{font-size:30px}.overview{font-size:12px;-webkit-line-clamp:3}.film-meta{font-size:12px;gap:10px}.episode-title{font-size:14px}.panel{right:12px;bottom:115px;padding:18px;border-radius:17px;max-height:calc(100dvh - 175px)}.episodes-panel{left:12px;width:auto}.episode-card{flex-basis:195px}.episode-copy{padding:10px}}@media(max-height:500px){.pause-info{bottom:100px;max-width:60vw}.pause-info img{max-height:85px;margin-bottom:10px}.pause-info h2{font-size:30px;margin-bottom:10px}.overview{-webkit-line-clamp:2;font-size:12px}.film-meta{margin-bottom:8px}.panel{bottom:95px;max-height:calc(100dvh - 150px)}.top-bar{padding-top:8px;padding-bottom:8px}.bottom-bar{padding-top:8px}}@media(prefers-reduced-motion:reduce){.chrome,.pause-info,.screen-shade{transition:none}}`;

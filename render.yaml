@@ -19,7 +19,7 @@ services:
       - key: STREAM_RELAY_TOKEN
         generateValue: true
       - key: STREAM_PROVIDER_ORDER
-        value: miami,boise,orlando
+        value: miami,boise,orlando,paris,munich
       - key: STREAM_CRYPTO_API_URL
         value: https://enc-dec.app/api
     buildFilter:
