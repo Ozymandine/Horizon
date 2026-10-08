@@ -4,6 +4,7 @@ import { createHmac, createDecipheriv } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { rc4, decodeVidsrcUrl, encodeVidplayId, encodeVidlinkId, decodeEmbedSuConfig, providerOrder, resolveProvider } from '../lib/stream-providers.mjs';
 import { handleStreamRequest, handleProxyRequest, streamConfiguration, axiosUpstream } from '../lib/stream-serverless.mjs';
+import { allowedUrl } from '../services/stream-relay/security.mjs';
 
 const secret = 'provider-regression-only-secret';
 const expiry = String(Math.floor(Date.now() / 1000) + 3600);
@@ -177,4 +178,39 @@ test('tickets cannot select an unknown provider even when their ciphertext is au
   const result = await handleProxyRequest(new Request(`https://horizon.example/api/proxy-stream?token=${token}`, { headers: { cookie } }), env, { upstream: async () => { called = true; }, log: () => {} });
   assert.equal(result.status, 403);
   assert.equal(called, false);
+});
+
+test('verified CDN rotation supports new worker media and previously issued old-host tickets without a wildcard', async () => {
+  const settings = { AUTH_SECRET: secret, STREAM_PROVIDER_ORDER: 'orlando' };
+  const config = streamConfiguration(settings);
+  const oldHost = 'dawn-dew-dd4f.barbaraadamse463.workers.dev';
+  const newHost = 'polished-silence-d68a.barbaraadamse463.workers.dev';
+  // The same stable codec represents an already-issued pre-rotation capability.
+  const oldTicket = config.tickets.encode({ kind: 'media', url: `https://${oldHost}/video.ts`, provider: 'orlando' });
+  for (const [host, token] of [[oldHost, oldTicket], [newHost, config.tickets.encode({ kind: 'media', url: `https://${newHost}/video.ts`, provider: 'paris' })]]) {
+    let called;
+    const result = await handleProxyRequest(new Request(`https://horizon.example/api/proxy-stream?token=${token}`, { headers: { cookie } }), settings, {
+      upstream: async (url, selectedConfig) => {
+        allowedUrl(url, selectedConfig.hosts);
+        called = url;
+        assert.equal(selectedConfig.referer, 'https://www.movy.sx/');
+        return { url, response: response(Buffer.alloc(564, 0x47), 200, 'video/mp2t') };
+      }, log: () => {},
+    });
+    assert.equal(result.status, 200);
+    assert.equal(called, `https://${host}/video.ts`);
+    assert.equal((await result.arrayBuffer()).byteLength, 564);
+  }
+  for (const host of ['unverified.barbaraadamse463.workers.dev', 'polished-silence-d68a.other-account.workers.dev']) {
+    const token = config.tickets.encode({ kind: 'media', url: `https://${host}/video.ts`, provider: 'orlando' });
+    let called = false;
+    const result = await handleProxyRequest(new Request(`https://horizon.example/api/proxy-stream?token=${token}`, { headers: { cookie } }), settings, { upstream: async (url, selectedConfig) => {
+      // The real transport checks before DNS; the fixture makes that same
+      // assertion to ensure host additions never imply an account-wide glob.
+      allowedUrl(url, selectedConfig.hosts);
+      called = true;
+    }, log: () => {} });
+    assert.equal(result.status, 502);
+    assert.equal(called, false);
+  }
 });

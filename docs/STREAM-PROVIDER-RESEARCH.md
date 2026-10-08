@@ -1,6 +1,6 @@
 # Public streaming provider research
 
-Checked on October 5 and October 7, 2026. The initial investigation was local; subsequent Miami/Boise/Orlando integration checks also passed from Vercel. October 7 added local Paris/Munich movie and Munich episode preflight checks. Render has not been deployed or tested.
+Checked on October 5, October 7 and October 8, 2026. The initial investigation was local; subsequent Miami/Boise/Orlando integration checks also passed from Vercel. October 7 added local Paris/Munich movie and Munich episode preflight checks. October 8 checked a rotated Orlando/Paris worker hostname. Render has not been deployed or tested.
 
 ## Confirmed Movy connection
 
@@ -29,10 +29,14 @@ The minimum TMDB movie/episode parameters worked for Miami and Boise. Title, yea
 | Paris, movie TMDB 603, October 7 | Complete HLS and three valid MPEG-TS segments from Orlando's existing exact worker hostname |
 | Munich, movie TMDB 603, October 7 | Complete HLS and three valid MPEG-TS segments from independently checked `sun.paleoak.top` |
 | Munich, TMDB 1399 S1E1, October 7 | Updated resolver preflight checked HLS and initial media successfully |
+| Munich, TMDB 1399 S1E1, October 8 | Real MPEG-TS episode segments passed the deployed Vercel same-origin relay checks |
 | Berlin, movie TMDB 603, October 7 | Source request timed out; excluded |
+| Orlando / Paris, movie TMDB 603, October 8 | Both rotated to `polished-silence-d68a.barbaraadamse463.workers.dev`; complete HLS and three real MPEG-TS segments per provider independently verified locally |
 | Phoenix / Portland / Tampa / Dallas / Vegas | Source, playlist, rendition or timeout checks failed; these routes are excluded from the default selector |
 
 Miami/Boise media came from `moon.zenoak.top`. Orlando/Paris's exact `dawn-dew-dd4f.barbaraadamse463.workers.dev` hostname and Munich's `sun.paleoak.top` were independently checked with pinned public DNS, verified TLS, complete playlists, and real segments, then added to the media host list. The same CDN can behave differently for different source routes; Munich's October 7 result does not establish that rejected Phoenix/Portland routes work. Signed URLs were kept in ignored research files and are not documented here. One initial movie playlist fetch reset its connection; a subsequent fetch succeeded. Long playback and subtitle behavior remain unverified.
+
+On October 8, both Orlando and Paris source replies used a newly rotated exact worker hostname, `polished-silence-d68a.barbaraadamse463.workers.dev`. Production and local requests correctly returned `STREAM_REJECTED` before any disallowed host fetch. Independent pinned-DNS/TLS checks then fetched the complete playlist and three valid MPEG-TS segments for each provider. The exact new hostname was added; the prior worker hostname remains allowed for previously issued capabilities. Similar-looking unverified worker names remain rejected.
 
 ## Horizon integration path
 
